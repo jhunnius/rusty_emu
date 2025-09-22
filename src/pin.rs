@@ -1,4 +1,4 @@
-use std::cmp::{Ordering, PartialOrd};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -44,7 +44,7 @@ impl PinValue {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriveStrength {
     HighImpedance = 0,
     Weak = 1,
@@ -52,6 +52,17 @@ pub enum DriveStrength {
     Strong = 3,
 }
 
+impl Ord for DriveStrength {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (*self as u8).cmp(&(*other as u8))
+    }
+}
+
+impl PartialOrd for DriveStrength {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 pub struct Pin {
     name: String,
     drivers: HashMap<String, (PinValue, DriveStrength)>,
@@ -59,11 +70,6 @@ pub struct Pin {
     last_update: Instant,
     settlement_time: Duration,
     connected_pins: Vec<Arc<Mutex<Pin>>>,
-}
-impl PartialOrd for DriveStrength {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some((*self as u8).cmp(&(*other as u8)))
-    }
 }
 impl Pin {
     pub fn new(name: String) -> Self {
