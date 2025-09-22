@@ -1,56 +1,438 @@
-use crate::components::memory::generic_rom::GenericRom;
-use crate::{Component, PinValue};
-use crate::systems::intel_mcs_4::MCS4Phase;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
-// 4001 ROM: 256 bytes, 4-bit data width
-pub type Intel4001 = GenericRom;
+use crate::component::{BaseComponent, Component};
+use crate::pin::{Pin, PinValue};
+
+/// Intel 4001 - 256-byte ROM with integrated I/O
+/// Part of the MCS-4 family, designed to work with Intel 4004 CPU
+pub struct Intel4001 {
+    base: BaseComponent,
+    memory: Vec<u8>,
+    last_address: u16,
+    access_time: Duration,
+    last_access: Instant,
+    output_latch: u8,
+    input_latch: u8,
+    io_mode: IoMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum IoMode {
+    Input,   // I/O pins as inputs
+    Output,  // I/O pins as outputs
+    Bidirectional, // I/O pins bidirectional
+}
+
 impl Intel4001 {
-    fn update(&mut self) -> Result<(), String> {
-        // Read the current bus phase from the pins
-        let phase = self.detect_bus_phase();
+    pub fn new(name: String) -> Self {
+        // Intel 4001 has 256 bytes of ROM
+        let rom_size = 256;
 
-        match phase {
-            MCS4Phase::AddressLow => {
-                self.latch_address_low();
-            }
-            MCS4Phase::AddressHigh => {
-                self.latch_address_high();
-                if self.is_selected() {
-                    self.prepare_data_output();
-                }
-            }
-            MCS4Phase::DataRead => {
-                if self.is_selected() {
-                    self.output_data(/* u8 */);
-                }
-            }
-            _ => {
-                // Put pins in high impedance
-                self.set_pins_high_z();
-            }
+        // Intel 4001 pinout:
+        // - 10 address pins (A0-A9, but only A0-A7 used for 256-byte addressing)
+        // - 4 data pins (D0-D3) for multiplexed address/data
+        // - 4 I/O pins (IO0-IO3)
+        // - Control pins: SYNC, CM-ROM, CM-RAM, RESET
+        let pin_names = vec![
+            "D0", "D1", "D2", "D3",    // Data/Address pins
+            "IO0", "IO1", "IO2", "IO3", // I/O pins
+            "SYNC",                     // Sync signal
+            "CM_ROM",                   // ROM Chip Select
+            "CM_RAM",                   // RAM Chip Select (for system configuration)
+            "RESET",                    // Reset
+        ];
+
+        let pins = BaseComponent::create_pin_map(&pin_names, &name);
+        let memory = vec![0u8; rom_size];
+
+        Intel4001 {
+            base: BaseComponent::new(name, pins),
+            memory,
+            last_address: 0,
+            access_time: Duration::from_nanos(500), // 500ns access time
+            last_access: Instant::now(),
+            output_latch: 0,
+            input_latch: 0,
+            io_mode: IoMode::Input,
+        }
+    }
+
+    pub fn load_rom_data(&mut self, data: Vec<u8>, offset: usize) -> Result<(), String> {
+        if offset + data.len() > self.memory.len() {
+            return Err(format!(
+                "Data exceeds ROM capacity: offset {} + data length {} > ROM size {}",
+                offset, data.len(), self.memory.len()
+            ));
         }
 
+        self.memory[offset..offset + data.len()].copy_from_slice(&data);
         Ok(())
     }
-    fn detect_bus_phase(&self) -> MCS4Phase {
-        // Detect phase based on sync and other control signals
-        if let Some(sync_pin) = self.base.get_pin("pin_0") {
-            match sync_pin.read() {
-                PinValue::High => MCS4Phase::AddressLow, // Sync high = address phase
-                PinValue::Low => MCS4Phase::DataRead,    // Sync low = data phase
-                _ => MCS4Phase::AddressLow,
-            }
-        } else {
-            MCS4Phase::AddressLow
+
+    pub fn load_from_hex(&mut self, hex_data: &str, offset: usize) -> Result<(), String> {
+        let bytes: Result<Vec<u8>, _> = hex_data
+            .split_whitespace()
+            .map(|s| u8::from_str_radix(s.trim(), 16))
+            .collect();
+
+        match bytes {
+            Ok(data) => self.load_rom_data(data, offset),
+            Err(e) => Err(format!("Invalid hex data: {}", e)),
         }
     }
-    fn latch_address_low(&mut self) {
-        let addr_low = self.read_nibble_from_pins(9..12);
-        self.latched_address = (self.latched_address & 0xFF0) | (addr_low as u16);
+
+    fn read_data_bus(&self) -> u8 {
+        let mut data = 0;
+
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
+                if let Ok(pin_guard) = pin.lock() {
+                    if pin_guard.read() == PinValue::High {
+                        data |= 1 << i;
+                    }
+                }
+            }
+        }
+
+        data
     }
-    fn latch_address_high(&mut self) {
-        let addr_high = self.read_nibble_from_pins(9..12);
-        let addr_mid = self.read_nibble_from_pins(13..16);
-        self.latched_address = ((addr_mid as u16) << 8) | ((addr_high as u16) << 4) | (self.latched_address & 0x00F);
+
+    fn write_data_bus(&self, data: u8) {
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    let bit_value = (data >> i) & 1;
+                    let pin_value = if bit_value == 1 {
+                        PinValue::High
+                    } else {
+                        PinValue::Low
+                    };
+                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), pin_value);
+                }
+            }
+        }
+    }
+
+    fn read_io_pins(&self) -> u8 {
+        let mut data = 0;
+
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("IO{}", i)) {
+                if let Ok(pin_guard) = pin.lock() {
+                    if pin_guard.read() == PinValue::High {
+                        data |= 1 << i;
+                    }
+                }
+            }
+        }
+
+        data
+    }
+
+    fn write_io_pins(&self, data: u8) {
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("IO{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    let bit_value = (data >> i) & 1;
+                    let pin_value = if bit_value == 1 {
+                        PinValue::High
+                    } else {
+                        PinValue::Low
+                    };
+                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), pin_value);
+                }
+            }
+        }
+    }
+
+    fn tri_state_data_bus(&self) {
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                }
+            }
+        }
+    }
+
+    fn tri_state_io_pins(&self) {
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("IO{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                }
+            }
+        }
+    }
+
+    fn read_control_pins(&self) -> (bool, bool, bool, bool) {
+        let sync = if let Ok(pin) = self.base.get_pin("SYNC") {
+            if let Ok(pin_guard) = pin.lock() {
+                pin_guard.read() == PinValue::High
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        let cm_rom = if let Ok(pin) = self.base.get_pin("CM_ROM") {
+            if let Ok(pin_guard) = pin.lock() {
+                pin_guard.read() == PinValue::High
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        let cm_ram = if let Ok(pin) = self.base.get_pin("CM_RAM") {
+            if let Ok(pin_guard) = pin.lock() {
+                pin_guard.read() == PinValue::High
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        let reset = if let Ok(pin) = self.base.get_pin("RESET") {
+            if let Ok(pin_guard) = pin.lock() {
+                pin_guard.read() == PinValue::High
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        (sync, cm_rom, cm_ram, reset)
+    }
+
+    fn handle_reset(&mut self) {
+        if self.read_control_pins().3 { // RESET is high
+            self.output_latch = 0;
+            self.input_latch = 0;
+            self.io_mode = IoMode::Input;
+            self.tri_state_data_bus();
+            self.tri_state_io_pins();
+        }
+    }
+
+    fn handle_io_operation(&mut self) {
+        let (sync, cm_rom, cm_ram, _) = self.read_control_pins();
+
+        // I/O operations occur when SYNC is high and CM-ROM is low
+        if sync && !cm_rom {
+            let address_low = self.read_data_bus(); // Lower 4 bits of address from data bus
+
+            // For I/O operations, the upper address bits determine the operation
+            if cm_ram {
+                // I/O read operation
+                self.input_latch = self.read_io_pins();
+                self.write_data_bus(self.input_latch);
+            } else {
+                // I/O write operation
+                let data = self.read_data_bus();
+                self.output_latch = data;
+                self.write_io_pins(data);
+                self.io_mode = IoMode::Output;
+            }
+        }
+    }
+
+    fn handle_memory_operation(&mut self) -> bool {
+        let (sync, cm_rom, cm_ram, _) = self.read_control_pins();
+
+        // Memory operations occur when SYNC is high and CM-ROM is high
+        if sync && cm_rom {
+            if cm_ram {
+                // Second cycle of memory read - output data
+                let address = self.last_address;
+                if (address as usize) < self.memory.len() {
+                    let data = self.memory[address as usize];
+                    self.write_data_bus(data);
+                    return true;
+                }
+            } else {
+                // First cycle of memory operation - latch address
+                let address_low = self.read_data_bus();
+                self.last_address = address_low as u16;
+                // Tri-state during address phase
+                self.tri_state_data_bus();
+            }
+        }
+
+        false
+    }
+}
+
+impl Component for Intel4001 {
+    fn name(&self) -> String {
+        self.base.name()
+    }
+
+    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+        self.base.pins()
+    }
+
+    fn get_pin(&self, name: &str) -> Result<Arc<Mutex<Pin>>, String> {
+        self.base.get_pin(name)
+    }
+
+    fn update(&mut self) {
+        // Respect access timing
+        if self.last_access.elapsed() < self.access_time {
+            return;
+        }
+
+        self.handle_reset();
+
+        // Handle I/O operations (higher priority than memory operations)
+        self.handle_io_operation();
+
+        // Handle memory operations
+        let memory_accessed = self.handle_memory_operation();
+
+        // If no memory operation occurred, ensure data bus is tri-stated when not active
+        if !memory_accessed {
+            let (sync, cm_rom, _, _) = self.read_control_pins();
+            if !sync || !cm_rom {
+                self.tri_state_data_bus();
+            }
+        }
+
+        self.last_access = Instant::now();
+    }
+
+    fn run(&mut self) {
+        self.base.set_running(true);
+
+        while self.is_running() {
+            self.update();
+            thread::sleep(Duration::from_micros(1));
+        }
+    }
+
+    fn stop(&mut self) {
+        self.base.set_running(false);
+
+        // Tri-state all outputs when stopped
+        self.tri_state_data_bus();
+        self.tri_state_io_pins();
+    }
+
+    fn is_running(&self) -> bool {
+        self.base.is_running()
+    }
+}
+
+// Intel 4001 specific methods
+impl Intel4001 {
+    pub fn get_rom_size(&self) -> usize {
+        self.memory.len()
+    }
+
+    pub fn read_rom(&self, address: u8) -> Option<u8> {
+        if (address as usize) < self.memory.len() {
+            Some(self.memory[address as usize])
+        } else {
+            None
+        }
+    }
+
+    pub fn get_output_latch(&self) -> u8 {
+        self.output_latch
+    }
+
+    pub fn get_input_latch(&self) -> u8 {
+        self.input_latch
+    }
+
+    pub fn get_io_mode(&self) -> IoMode {
+        self.io_mode
+    }
+
+    pub fn set_io_mode(&mut self, mode: IoMode) {
+        self.io_mode = mode;
+        match mode {
+            IoMode::Input => self.tri_state_io_pins(),
+            IoMode::Output => self.write_io_pins(self.output_latch),
+            IoMode::Bidirectional => {
+                // In bidirectional mode, I/O pins follow the data bus during writes
+            }
+        }
+    }
+}
+
+// Custom formatter for debugging
+impl std::fmt::Display for IoMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IoMode::Input => write!(f, "Input"),
+            IoMode::Output => write!(f, "Output"),
+            IoMode::Bidirectional => write!(f, "Bidirectional"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_intel4001_creation() {
+        let rom = Intel4001::new("ROM_4001".to_string());
+        assert_eq!(rom.name(), "ROM_4001");
+        assert_eq!(rom.get_rom_size(), 256);
+        assert!(!rom.is_running());
+    }
+
+    #[test]
+    fn test_intel4001_rom_loading() {
+        let mut rom = Intel4001::new("ROM_4001".to_string());
+
+        let test_data = vec![0x12, 0x34, 0x56, 0x78];
+        assert!(rom.load_rom_data(test_data.clone(), 0).is_ok());
+
+        assert_eq!(rom.read_rom(0).unwrap(), 0x12);
+        assert_eq!(rom.read_rom(1).unwrap(), 0x34);
+        assert_eq!(rom.read_rom(2).unwrap(), 0x56);
+        assert_eq!(rom.read_rom(3).unwrap(), 0x78);
+    }
+
+    #[test]
+    fn test_intel4001_io_modes() {
+        let mut rom = Intel4001::new("ROM_4001".to_string());
+
+        assert_eq!(rom.get_io_mode(), IoMode::Input);
+
+        rom.set_io_mode(IoMode::Output);
+        assert_eq!(rom.get_io_mode(), IoMode::Output);
+
+        rom.set_io_mode(IoMode::Bidirectional);
+        assert_eq!(rom.get_io_mode(), IoMode::Bidirectional);
+    }
+
+    #[test]
+    fn test_intel4001_latches() {
+        let mut rom = Intel4001::new("ROM_4001".to_string());
+
+        // Initial state
+        assert_eq!(rom.get_output_latch(), 0);
+        assert_eq!(rom.get_input_latch(), 0);
+
+        // These would be set during actual I/O operations
+        // The test verifies the latch structures exist
+    }
+
+    #[test]
+    fn test_io_mode_display() {
+        assert_eq!(IoMode::Input.to_string(), "Input");
+        assert_eq!(IoMode::Output.to_string(), "Output");
+        assert_eq!(IoMode::Bidirectional.to_string(), "Bidirectional");
     }
 }

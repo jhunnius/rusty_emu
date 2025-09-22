@@ -1,302 +1,414 @@
-use std::sync::Arc;
-use crate::{Component, Pin, PinValue};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
-#[derive(Clone)]
-pub struct GenericRam<const SIZE: usize, const DATA_WIDTH: usize, const ADDR_WIDTH: usize> {
-    base: crate::component::BaseComponent,
-    pub(crate) memory: Vec<u64>,
-    base_address: u64,
-    address_mask: u64,
-    read_delay: u32,    // Read access time in cycles
-    write_delay: u32,   // Write access time in cycles
-    current_operation: Option<RamOperation>,
-    operation_cycles: u32,
-    output_buffer: Option<u64>,
+use crate::component::{BaseComponent, Component};
+use crate::pin::{Pin, PinValue};
+
+pub struct GenericRam {
+    base: BaseComponent,
+    memory: Vec<u8>,
+    address_width: usize,
+    data_width: usize,
+    last_address: u32,
+    last_operation: RamOperation,
+    access_time: Duration,
+    last_access: Instant,
+    write_enable: bool,
+    output_enable: bool,
+    chip_select: bool,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum RamOperation {
-    Read(u64),  // address
-    Write(u64, u64), // address, data
+    Read,
+    Write,
+    Idle,
 }
 
-impl<const SIZE: usize, const DATA_WIDTH: usize, const ADDR_WIDTH: usize>
-GenericRam<SIZE, DATA_WIDTH, ADDR_WIDTH>
-{
-    pub fn new(name: String, base_address: u64, read_delay: u32, write_delay: u32) -> Self {
-        let mut base = crate::component::BaseComponent::new(name);
+impl GenericRam {
+    pub fn new(name: String, size: usize, address_width: usize, data_width: usize) -> Self {
+        let mut pin_names = Vec::new();
 
-        // Add address pins
-        for i in 0..ADDR_WIDTH {
-            base.add_pin(format!("addr_{}", i), PinValue::Low);
+        // Address pins (A0, A1, A2, ...)
+        for i in 0..address_width {
+            pin_names.push(format!("A{}", i));
         }
 
-        // Add data pins
-        for i in 0..DATA_WIDTH {
-            base.add_pin(format!("data_{}", i), PinValue::HighZ);
+        // Data pins (D0, D1, D2, ...) - bidirectional
+        for i in 0..data_width {
+            let name = format!("D{}", i);
+            pin_names.push(name.clone());
         }
 
-        // Add control pins
-        base.add_pin("cs".to_string(), PinValue::High);    // Chip Select (active low)
-        base.add_pin("we".to_string(), PinValue::High);    // Write Enable (active low)
-        base.add_pin("oe".to_string(), PinValue::High);    // Output Enable (active low)
-        base.add_pin("clk".to_string(), PinValue::Low);    // Clock for synchronization
+        // Control pins
+        pin_names.push("CS".parse().unwrap());    // Chip Select
+        pin_names.push("WE".parse().unwrap());    // Write Enable
+        pin_names.push("OE".parse().unwrap());    // Output Enable
 
-        // Calculate address mask based on size
-        let address_mask = ((1 << ADDR_WIDTH) - 1) as u64;
+        let pin_refs: Vec<&str> = pin_names.iter().map(|s| s.as_str()).collect();
+        let pins = BaseComponent::create_pin_map(&pin_refs, &name);
+        let memory = vec![0u8; size];
 
-        Self {
-            base,
-            memory: vec![0; SIZE],
-            base_address,
-            address_mask,
-            read_delay,
-            write_delay,
-            current_operation: None,
-            operation_cycles: 0,
-            output_buffer: None,
-        }
-    }
-
-    fn read_address_bus(&self) -> u64 {
-        let mut address = 0;
-        for i in 0..ADDR_WIDTH {
-            if let Some(pin) = self.base.get_pin(&format!("addr_{}", i)) {
-                if pin.read() == PinValue::High {
-                    address |= 1 << i;
-                }
-            }
-        }
-        address
-    }
-
-    fn read_data_bus(&self) -> u64 {
-        let mut data = 0;
-        for i in 0..DATA_WIDTH {
-            if let Some(pin) = self.base.get_pin(&format!("data_{}", i)) {
-                if pin.read() == PinValue::High {
-                    data |= 1 << i;
-                }
-            }
-        }
-        data
-    }
-
-    fn write_data_bus(&self, data: u64) {
-        for i in 0..DATA_WIDTH {
-            if let Some(pin) = self.base.get_pin(&format!("data_{}", i)) {
-                let bit = (data >> i) & 1;
-                let value = if bit == 1 { PinValue::High } else { PinValue::Low };
-                pin.write(value, true);
-            }
+        GenericRam {
+            base: BaseComponent::new(name, pins),
+            memory,
+            address_width,
+            data_width,
+            last_address: 0,
+            last_operation: RamOperation::Idle,
+            access_time: Duration::from_nanos(100), // 100ns access time
+            last_access: Instant::now(),
+            write_enable: false,
+            output_enable: false,
+            chip_select: false,
         }
     }
 
-    fn set_data_bus_high_z(&self) {
-        for i in 0..DATA_WIDTH {
-            if let Some(pin) = self.base.get_pin(&format!("data_{}", i)) {
-                pin.write(PinValue::HighZ, false);
-            }
-        }
-    }
-
-    fn is_selected(&self) -> bool {
-        if let Some(cs_pin) = self.base.get_pin("cs") {
-            cs_pin.read() == PinValue::Low // Active low
-        } else {
-            false
-        }
-    }
-
-    fn is_write_enabled(&self) -> bool {
-        if let Some(we_pin) = self.base.get_pin("we") {
-            we_pin.read() == PinValue::Low // Active low
-        } else {
-            false
-        }
-    }
-
-    fn is_output_enabled(&self) -> bool {
-        if let Some(oe_pin) = self.base.get_pin("oe") {
-            oe_pin.read() == PinValue::Low // Active low
-        } else {
-            false
-        }
-    }
-
-    fn is_clock_rising_edge(&self, last_clock: &mut PinValue) -> bool {
-        if let Some(clk_pin) = self.base.get_pin("clk") {
-            let current_clock = clk_pin.read();
-            let rising_edge = *last_clock == PinValue::Low && current_clock == PinValue::High;
-            *last_clock = current_clock;
-            rising_edge
-        } else {
-            false
-        }
-    }
-
-    pub(crate) fn decode_address(&self, bus_address: u64) -> Option<usize> {
-        // Check if address is in our range
-        let relative_address = bus_address & self.address_mask;
-
-        if (bus_address & !self.address_mask) == self.base_address {
-            // Address matches our base + mask
-            let index = relative_address as usize;
-            if index < SIZE {
-                Some(index)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    fn start_read_operation(&mut self, address: u64) {
-        if let Some(index) = self.decode_address(address) {
-            self.current_operation = Some(RamOperation::Read(address));
-            self.operation_cycles = 0;
-            println!("RAM {}: Starting read from address {:X} (index {})",
-                     self.base.name, address, index);
-        }
-    }
-
-    fn start_write_operation(&mut self, address: u64, data: u64) {
-        if let Some(index) = self.decode_address(address) {
-            self.current_operation = Some(RamOperation::Write(address, data));
-            self.operation_cycles = 0;
-            println!("RAM {}: Starting write {:X} to address {:X} (index {})",
-                     self.base.name, data, address, index);
-        }
-    }
-
-    fn complete_read_operation(&mut self, address: u64) {
-        if let Some(index) = self.decode_address(address) {
-            let data = self.memory[index];
-            self.output_buffer = Some(data);
-            println!("RAM {}: Read complete - data {:X} from address {:X}",
-                     self.base.name, data, address);
-        }
-        self.current_operation = None;
-    }
-
-    fn complete_write_operation(&mut self, address: u64, data: u64) {
-        if let Some(index) = self.decode_address(address) {
-            self.memory[index] = data & ((1 << DATA_WIDTH) - 1); // Mask to data width
-            println!("RAM {}: Write complete - data {:X} to address {:X}",
-                     self.base.name, data, address);
-        }
-        self.current_operation = None;
-    }
-
-    fn update_operation(&mut self) {
-        if let Some(operation) = self.current_operation {
-            self.operation_cycles += 1;
-
-            match operation {
-                RamOperation::Read(addr) => {
-                    if self.operation_cycles >= self.read_delay {
-                        self.complete_read_operation(addr);
-                    }
-                }
-                RamOperation::Write(addr, data) => {
-                    if self.operation_cycles >= self.write_delay {
-                        self.complete_write_operation(addr, data);
-                    }
-                }
-            }
-        }
-    }
-
-    fn handle_bus_signals(&mut self, bus_address: u64, last_clock: &mut PinValue) {
-        if !self.is_selected() {
-            // Not selected - high impedance and clear any pending operations
-            self.set_data_bus_high_z();
-            self.current_operation = None;
-            return;
+    pub fn load_data(&mut self, data: Vec<u8>, offset: usize) -> Result<(), String> {
+        if offset + data.len() > self.memory.len() {
+            return Err(format!(
+                "Data exceeds RAM capacity: offset {} + data length {} > RAM size {}",
+                offset, data.len(), self.memory.len()
+            ));
         }
 
-        let clock_rising_edge = self.is_clock_rising_edge(last_clock);
-
-        if clock_rising_edge {
-            // On clock edge, check what operation is requested
-            if self.is_write_enabled() {
-                // Write operation
-                let data = self.read_data_bus();
-                self.start_write_operation(bus_address, data);
-            } else if self.is_output_enabled() {
-                // Read operation
-                self.start_read_operation(bus_address);
-            }
-        }
-
-        // Handle ongoing operations
-        self.update_operation();
-
-        // Output data if we have it and output is enabled
-        if self.is_output_enabled() {
-            if let Some(data) = self.output_buffer {
-                self.write_data_bus(data);
-            } else {
-                self.set_data_bus_high_z();
-            }
-        } else {
-            self.set_data_bus_high_z();
-        }
-    }
-}
-
-impl<const SIZE: usize, const DATA_WIDTH: usize, const ADDR_WIDTH: usize>
-crate::component::Component for GenericRam<SIZE, DATA_WIDTH, ADDR_WIDTH>
-{
-    fn name(&self) -> &str {
-        self.base.name()
-    }
-
-    fn pins(&self) -> &std::collections::HashMap<String, Arc<Pin>> {
-        self.base.pins()
-    }
-
-    fn get_pin(&self, name: &str) -> Option<Arc<Pin>> {
-        self.base.get_pin(name)
-    }
-
-    fn update(&mut self) -> Result<(), String> {
-        let bus_address = self.read_address_bus();
-        let mut last_clock = PinValue::Low;
-
-        self.handle_bus_signals(bus_address, &mut last_clock);
+        self.memory[offset..offset + data.len()].copy_from_slice(&data);
         Ok(())
     }
 
-    fn run(&mut self) {
-        self.base.run();
+    pub fn load_from_binary(&mut self, data: &[u8], offset: usize) -> Result<(), String> {
+        if offset + data.len() > self.memory.len() {
+            return Err(format!(
+                "Data exceeds RAM capacity: offset {} + data length {} > RAM size {}",
+                offset, data.len(), self.memory.len()
+            ));
+        }
+
+        self.memory[offset..offset + data.len()].copy_from_slice(data);
+        Ok(())
     }
 
-    fn stop(&mut self) {
-        self.base.stop();
+    pub fn get_memory_size(&self) -> usize {
+        self.memory.len()
+    }
+
+    pub fn read_memory(&self, address: usize, length: usize) -> Result<Vec<u8>, String> {
+        if address + length > self.memory.len() {
+            return Err("Address range out of bounds".to_string());
+        }
+
+        Ok(self.memory[address..address + length].to_vec())
+    }
+
+    pub fn write_memory(&mut self, address: usize, data: &[u8]) -> Result<(), String> {
+        if address + data.len() > self.memory.len() {
+            return Err("Address range out of bounds".to_string());
+        }
+
+        self.memory[address..address + data.len()].copy_from_slice(data);
+        Ok(())
+    }
+
+    pub fn get_access_time(&self) -> Duration {
+        self.access_time
+    }
+
+    pub fn set_access_time(&mut self, access_time: Duration) {
+        self.access_time = access_time;
+    }
+
+    fn read_address(&self) -> u32 {
+        let mut address = 0;
+
+        for i in 0..self.address_width {
+            if let Ok(pin) = self.base.get_pin(&format!("A{}", i)) {
+                if let Ok(pin_guard) = pin.lock() {
+                    if pin_guard.read() == PinValue::High {
+                        address |= 1 << i;
+                    }
+                }
+            }
+        }
+
+        address
+    }
+
+    fn read_data_bus(&self) -> u8 {
+        let mut data = 0;
+
+        for i in 0..self.data_width {
+            if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
+                if let Ok(pin_guard) = pin.lock() {
+                    if pin_guard.read() == PinValue::High {
+                        data |= 1 << i;
+                    }
+                }
+            }
+        }
+
+        data
+    }
+
+    fn write_data_bus(&self, data: u8) {
+        for i in 0..self.data_width {
+            if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    let bit_value = (data >> i) & 1;
+                    let pin_value = if bit_value == 1 {
+                        PinValue::High
+                    } else {
+                        PinValue::Low
+                    };
+                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), pin_value);
+                }
+            }
+        }
+    }
+
+    fn read_control_pins(&mut self) {
+        // Read Chip Select (active low)
+        self.chip_select = if let Ok(cs_pin) = self.base.get_pin("CS") {
+            if let Ok(cs_guard) = cs_pin.lock() {
+                cs_guard.read() == PinValue::Low
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        // Read Write Enable (active low)
+        self.write_enable = if let Ok(we_pin) = self.base.get_pin("WE") {
+            if let Ok(we_guard) = we_pin.lock() {
+                we_guard.read() == PinValue::Low
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        // Read Output Enable (active low)
+        self.output_enable = if let Ok(oe_pin) = self.base.get_pin("OE") {
+            if let Ok(oe_guard) = oe_pin.lock() {
+                oe_guard.read() == PinValue::Low
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+    }
+
+    fn tri_state_data_bus(&self) {
+        for i in 0..self.data_width {
+            if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                }
+            }
+        }
+    }
+
+    fn perform_read_operation(&mut self, address: u32) {
+        if (address as usize) < self.memory.len() {
+            let data = self.memory[address as usize];
+            self.write_data_bus(data);
+            self.last_operation = RamOperation::Read;
+        } else {
+            // Address out of bounds - tri-state
+            self.tri_state_data_bus();
+        }
+    }
+
+    fn perform_write_operation(&mut self, address: u32) {
+        if (address as usize) < self.memory.len() {
+            let data = self.read_data_bus();
+            self.memory[address as usize] = data;
+            self.last_operation = RamOperation::Write;
+        }
+        // During write, RAM doesn't drive the data bus
+        self.tri_state_data_bus();
     }
 }
 
-// BusDevice implementation
-impl<const SIZE: usize, const DATA_WIDTH: usize, const ADDR_WIDTH: usize>
-crate::bus::BusDevice for GenericRam<SIZE, DATA_WIDTH, ADDR_WIDTH>
-{
+impl Component for GenericRam {
+    fn name(&self) -> String {
+        self.base.name()
+    }
+
+    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+        self.base.pins()
+    }
+
+    fn get_pin(&self, name: &str) -> Result<Arc<Mutex<Pin>>, String> {
+        self.base.get_pin(name)
+    }
+
     fn update(&mut self) {
-        // Delegate to component update
-        let _ = Component::update(self);
+        // Respect access timing
+        if self.last_access.elapsed() < self.access_time {
+            return;
+        }
+
+        self.read_control_pins();
+
+        if !self.chip_select {
+            // Chip not selected - tri-state all outputs
+            self.tri_state_data_bus();
+            self.last_operation = RamOperation::Idle;
+            return;
+        }
+
+        let current_address = self.read_address();
+        let address_changed = current_address != self.last_address;
+
+        // Determine operation based on control pins
+        if self.write_enable {
+            // Write operation (WE low)
+            self.perform_write_operation(current_address);
+        } else if self.output_enable {
+            // Read operation (OE low, WE high)
+            if address_changed || self.last_operation != RamOperation::Read {
+                self.perform_read_operation(current_address);
+            }
+        } else {
+            // Output disabled - tri-state data bus
+            self.tri_state_data_bus();
+            self.last_operation = RamOperation::Idle;
+        }
+
+        self.last_address = current_address;
+        self.last_access = Instant::now();
     }
 
-    fn connect_to_bus(&mut self, bus_pins: Vec<Arc<Pin>>) {
-        // Connect to bus pins - in a real system, this would connect address, data, and control pins
-        // This is simplified for the example
+    fn run(&mut self) {
+        self.base.set_running(true);
+
+        while self.is_running() {
+            self.update();
+            thread::sleep(Duration::from_micros(1));
+        }
     }
 
-    fn get_address_range(&self) -> Option<std::ops::Range<u64>> {
-        Some(self.base_address..self.base_address + SIZE as u64)
+    fn stop(&mut self) {
+        self.base.set_running(false);
+
+        // Tri-state all data pins when stopped
+        self.tri_state_data_bus();
     }
 
-    fn get_name(&self) -> &str {
-        todo!()
+    fn is_running(&self) -> bool {
+        self.base.is_running()
+    }
+}
+
+// Additional utility methods
+impl GenericRam {
+    pub fn clear_memory(&mut self) {
+        for byte in &mut self.memory {
+            *byte = 0;
+        }
+    }
+
+    pub fn fill_memory(&mut self, value: u8) {
+        for byte in &mut self.memory {
+            *byte = value;
+        }
+    }
+
+    pub fn get_memory_snapshot(&self) -> Vec<u8> {
+        self.memory.clone()
+    }
+
+    pub fn restore_memory_snapshot(&mut self, snapshot: Vec<u8>) -> Result<(), String> {
+        if snapshot.len() != self.memory.len() {
+            return Err("Snapshot size doesn't match RAM size".to_string());
+        }
+
+        self.memory.copy_from_slice(&snapshot);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ram_creation() {
+        let ram = GenericRam::new("TEST_RAM".to_string(), 1024, 10, 8);
+        assert_eq!(ram.name(), "TEST_RAM");
+        assert_eq!(ram.memory.len(), 1024);
+        assert_eq!(ram.address_width, 10);
+        assert_eq!(ram.data_width, 8);
+    }
+
+    #[test]
+    fn test_ram_data_loading() {
+        let mut ram = GenericRam::new("TEST_RAM".to_string(), 256, 8, 8);
+
+        let test_data = vec![0x12, 0x34, 0x56, 0x78];
+        assert!(ram.load_data(test_data.clone(), 0).is_ok());
+
+        assert_eq!(ram.memory[0], 0x12);
+        assert_eq!(ram.memory[1], 0x34);
+        assert_eq!(ram.memory[2], 0x56);
+        assert_eq!(ram.memory[3], 0x78);
+    }
+
+    #[test]
+    fn test_ram_read_write() {
+        let mut ram = GenericRam::new("TEST_RAM".to_string(), 256, 8, 8);
+
+        // Test direct memory access
+        assert!(ram.write_memory(0x10, &[0xAA, 0xBB, 0xCC]).is_ok());
+
+        let read_data = ram.read_memory(0x10, 3).unwrap();
+        assert_eq!(read_data, vec![0xAA, 0xBB, 0xCC]);
+    }
+
+    #[test]
+    fn test_ram_clear_and_fill() {
+        let mut ram = GenericRam::new("TEST_RAM".to_string(), 256, 8, 8);
+
+        // Fill with pattern
+        ram.fill_memory(0x55);
+        assert_eq!(ram.memory[0], 0x55);
+        assert_eq!(ram.memory[100], 0x55);
+
+        // Clear memory
+        ram.clear_memory();
+        assert_eq!(ram.memory[0], 0);
+        assert_eq!(ram.memory[100], 0);
+    }
+
+    #[test]
+    fn test_ram_snapshot() {
+        let mut ram = GenericRam::new("TEST_RAM".to_string(), 256, 8, 8);
+
+        // Write some data
+        ram.write_memory(0, &[0x11, 0x22, 0x33]).unwrap();
+
+        // Take snapshot
+        let snapshot = ram.get_memory_snapshot();
+
+        // Modify memory
+        ram.write_memory(0, &[0x44, 0x55, 0x66]).unwrap();
+
+        // Restore snapshot
+        ram.restore_memory_snapshot(snapshot).unwrap();
+
+        // Verify restoration
+        let read_data = ram.read_memory(0, 3).unwrap();
+        assert_eq!(read_data, vec![0x11, 0x22, 0x33]);
+    }
+
+    #[test]
+    fn test_ram_is_running() {
+        let ram = GenericRam::new("TEST_RAM".to_string(), 256, 8, 8);
+        assert!(!ram.is_running());
     }
 }
