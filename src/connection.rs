@@ -4,14 +4,24 @@ use crate::pin::Pin;
 
 /// Manages electrical connections between pins
 pub struct ConnectionManager {
+    pin_registry: HashMap<String, Arc<Mutex<Pin>>>,
     connections: HashMap<String, Vec<String>>, // pin_name -> connected_pin_names
 }
 
 impl ConnectionManager {
     pub fn new() -> Self {
         ConnectionManager {
+            pin_registry: HashMap::new(),
             connections: HashMap::new(),
         }
+    }
+
+    pub fn register_pin(&mut self, name: String, pin: Arc<Mutex<Pin>>) {
+        self.pin_registry.insert(name, pin);
+    }
+
+    pub fn get_pin(&self, name: &str) -> Option<Arc<Mutex<Pin>>> {
+        self.pin_registry.get(name).cloned()
     }
 
     /// Connect two pins bidirectionally
