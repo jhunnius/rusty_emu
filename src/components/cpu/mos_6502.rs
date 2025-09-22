@@ -115,7 +115,7 @@ impl Component for MOS6502 {
     fn pins(&self) -> &HashMap<String, Arc<Pin>> {
         todo!()
     }
-    fn get_pin(&self, name: &str) -> Option<Arc<Pin>> {
+    fn get_pin(&self, _name: &str) -> Option<Arc<Pin>> {
         todo!()
     }
     // Implement Component trait methods...

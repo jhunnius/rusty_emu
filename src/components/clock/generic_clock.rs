@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use crate::component::{BaseComponent, Component};
@@ -8,7 +8,6 @@ use crate::pin::{Pin, PinValue};
 #[derive(Clone)]
 pub struct GenericClock {
     base: BaseComponent,
-    frequency: u64,
     half_period: Duration,
     last_state: bool,
 }
@@ -21,7 +20,6 @@ impl GenericClock {
 
         Self {
             base,
-            frequency: frequency_hz,
             half_period: Duration::from_millis(half_period_ms),
             last_state: false,
         }

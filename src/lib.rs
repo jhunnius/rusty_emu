@@ -3,6 +3,7 @@ pub mod pin;
 pub mod connection;
 pub mod components;
 pub mod systems;
+mod bus;
 
 // Re-export commonly used items for easier importing
 pub use component::{Component, BaseComponent};
