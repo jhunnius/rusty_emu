@@ -1,2 +1,2 @@
-pub(crate) mod cpu;
-pub(crate) mod clock;
+pub mod cpu;
+pub mod clock;

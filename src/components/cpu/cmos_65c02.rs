@@ -1,5 +1,6 @@
-use crate::{PinValue, Component, Pin};
 use std::sync::Arc;
+use crate::component::Component;
+use crate::pin::Pin;
 use crate::components::cpu::mos_6502::MOS6502;
 
 pub struct CMOS65C02 {
@@ -76,25 +77,17 @@ impl CMOS65C02 {
         self.waiting
     }
 }
-
 // Implement Component by delegating to the base 6502
 impl Component for CMOS65C02 {
     fn name(&self) -> &str {
         self.base_6502.name()
     }
-
-    fn pins(&self) -> &std::collections::HashMap<String, Arc<crate::Pin>> {
+    fn pins(&self) -> &std::collections::HashMap<String, Arc<Pin>> {
         self.base_6502.pins()
     }
-
-    fn get_pin(&self, name: &str) -> Option<Arc<crate::Pin>> {
+    fn get_pin(&self, name: &str) -> Option<Arc<Pin>> {
         self.base_6502.get_pin(name)
     }
-
-    fn connect_pin(&mut self, pin_name: &str, other_pin: Arc<crate::Pin>) -> Result<(), String> {
-        self.base_6502.connect_pin(pin_name, other_pin)
-    }
-
     fn update(&mut self) -> Result<(), String> {
         if self.stopped {
             // Don't execute instructions if stopped
@@ -104,11 +97,9 @@ impl Component for CMOS65C02 {
         // Delegate to base implementation
         self.base_6502.update()
     }
-
     fn run(&mut self) {
         self.base_6502.run()
     }
-
     fn stop(&mut self) {
         self.base_6502.stop()
     }

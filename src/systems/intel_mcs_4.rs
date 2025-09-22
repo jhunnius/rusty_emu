@@ -1,10 +1,11 @@
 use std::thread;
 use std::time::Duration;
-use crate::Component;
+use crate::component::Component;
 use crate::components::clock::generic_clock::GenericClock;
 use crate::components::cpu::intel_4004::Intel4004;
+use crate::connection::connect_pins;
 
-fn emulation() {
+pub fn emulation() {
     println!("Starting MCS-4 emulation with pin state resolution...");
 
     // Create components
@@ -13,7 +14,7 @@ fn emulation() {
 
     // Connect clock to CPU using the connection macro
     if let (Some(clock_out), Some(cpu_clk)) = (clock.out(), cpu.clk()) {
-        connect_pin!(&clock_out, &cpu_clk);
+        connect_pins(&clock_out, &cpu_clk).expect("Connection could not be made!");
         println!("Connected clock to CPU");
     }
 

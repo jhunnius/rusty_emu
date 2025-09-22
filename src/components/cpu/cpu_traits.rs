@@ -1,4 +1,4 @@
-use crate::{PinValue, Component};
+use crate::component::Component;
 use crate::components::cpu::cmos_65c02::CMOS65C02;
 use crate::components::cpu::mos_6502::{Registers, MOS6502};
 
