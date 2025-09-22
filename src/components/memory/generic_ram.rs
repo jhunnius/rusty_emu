@@ -29,19 +29,19 @@ GenericRam<SIZE, DATA_WIDTH, ADDR_WIDTH>
 
         // Add address pins
         for i in 0..ADDR_WIDTH {
-            base.add_pin(format!("addr_{}", i), PinValue::Low, false);
+            base.add_pin(format!("addr_{}", i), PinValue::Low);
         }
 
         // Add data pins
         for i in 0..DATA_WIDTH {
-            base.add_pin(format!("data_{}", i), PinValue::HighZ, false);
+            base.add_pin(format!("data_{}", i), PinValue::HighZ);
         }
 
         // Add control pins
-        base.add_pin("cs".to_string(), PinValue::High, false);    // Chip Select (active low)
-        base.add_pin("we".to_string(), PinValue::High, false);    // Write Enable (active low)
-        base.add_pin("oe".to_string(), PinValue::High, false);    // Output Enable (active low)
-        base.add_pin("clk".to_string(), PinValue::Low, false);    // Clock for synchronization
+        base.add_pin("cs".to_string(), PinValue::High);    // Chip Select (active low)
+        base.add_pin("we".to_string(), PinValue::High);    // Write Enable (active low)
+        base.add_pin("oe".to_string(), PinValue::High);    // Output Enable (active low)
+        base.add_pin("clk".to_string(), PinValue::Low);    // Clock for synchronization
 
         // Calculate address mask based on size
         let address_mask = ((1 << ADDR_WIDTH) - 1) as u64;

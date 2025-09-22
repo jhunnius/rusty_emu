@@ -3,7 +3,7 @@ use crate::{Component, PinValue};
 use crate::systems::intel_mcs_4::MCS4Phase;
 
 // 4001 ROM: 256 bytes, 4-bit data width
-pub type Intel4001 = GenericRom<256, 4>;
+pub type Intel4001 = GenericRom;
 impl Intel4001 {
     fn update(&mut self) -> Result<(), String> {
         // Read the current bus phase from the pins
@@ -21,7 +21,7 @@ impl Intel4001 {
             }
             MCS4Phase::DataRead => {
                 if self.is_selected() {
-                    self.output_data();
+                    self.output_data(/* u8 */);
                 }
             }
             _ => {

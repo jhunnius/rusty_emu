@@ -33,7 +33,6 @@ impl GenericBus {
             let pin = base.add_pin(
                 pin_name.to_string(),
                 *initial_value,
-                false, // Bus doesn't drive pins by default
             );
             bus_pins.insert(pin_name.to_string(), pin);
         }
