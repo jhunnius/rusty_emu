@@ -2,11 +2,13 @@ use crate::component::Component;
 use crate::components::cpu::mos_6502::MOS6502;
 use crate::components::cpu::WDC65C02;
 
+pub trait Registers {}
+
 pub trait CPU: Component {
     fn reset(&mut self);
     fn execute_instruction(&mut self);
-    fn get_registers(&self) -> &Registers;
-    fn get_registers_mut(&mut self) -> &mut Registers;
+    fn get_registers(&self) -> &dyn Registers;
+    fn get_registers_mut(&mut self) -> &mut dyn Registers;
     fn read_memory(&self, address: u16) -> u8;
     fn write_memory(&mut self, address: u16, value: u8);
 }
@@ -37,11 +39,11 @@ impl CPU for MOS6502 {
         todo!()
     }
 
-    fn get_registers(&self) -> &Registers {
+    fn get_registers(&self) -> &dyn Registers {
         todo!()
     }
 
-    fn get_registers_mut(&mut self) -> &mut Registers {
+    fn get_registers_mut(&mut self) -> &mut dyn Registers {
         todo!()
     }
 
@@ -80,11 +82,11 @@ impl CPU for WDC65C02 {
         todo!()
     }
 
-    fn get_registers(&self) -> &Registers {
+    fn get_registers(&self) -> &dyn Registers {
         todo!()
     }
 
-    fn get_registers_mut(&mut self) -> &mut Registers {
+    fn get_registers_mut(&mut self) -> &mut dyn Registers {
         todo!()
     }
 
