@@ -410,10 +410,12 @@ impl Intel4002 {
         let start = (bank * 16) as usize;
         let end = start + 16;
 
-        if end <= 40 {
+        if end < 40 {
             self.memory[start..end].to_vec()
-        } else {
+        } else if start > 40 {
             Vec::new()
+        } else {
+           self.memory[start..40].to_vec()
         }
     }
 }
@@ -478,12 +480,15 @@ mod tests {
         ram.write_ram(32, 0x03).unwrap(); // Bank 2
 
         let bank0 = ram.get_ram_bank(0);
+        assert_eq!(bank0.len(), 16);
         assert_eq!(bank0[0], 0x01);
 
         let bank1 = ram.get_ram_bank(1);
+        assert_eq!(bank1.len(), 16);
         assert_eq!(bank1[0], 0x02);
 
         let bank2 = ram.get_ram_bank(2);
+        assert_eq!(bank2.len(), 8);
         assert_eq!(bank2[0], 0x03);
     }
 
