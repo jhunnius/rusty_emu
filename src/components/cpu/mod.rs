@@ -1,4 +1,9 @@
-pub mod cpu_traits;
+// CPU components module
+pub mod mos_6502;
+pub mod wdc_65c02;
 pub mod intel_4004;
-mod mos_6502;
-mod cmos_65c02;
+
+// Re-export the CPU types
+pub use mos_6502::MOS6502;
+pub use wdc_65c02::WDC65C02;
+pub use intel_4004::Intel4004;
