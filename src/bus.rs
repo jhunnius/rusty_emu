@@ -303,7 +303,7 @@ impl Component for ActiveBus {
 
         while self.is_running() {
             self.update();
-            thread::sleep(Duration::from_micros(1));
+            thread::sleep(Duration::from_micros(10));
         }
     }
 
@@ -389,13 +389,44 @@ mod tests {
     #[test]
     fn test_active_bus_pattern() {
         let mut active_bus = ActiveBus::new("ACTIVE_BUS".to_string());
+
+        // Start the bus in a new thread
+        let bus_arc = std::sync::Arc::new(std::sync::Mutex::new(bus));
+        let bus_clone = bus_arc.clone();
+
+        let handle = std::thread::spawn(move || {
+            let mut bus = bus_clone.lock().unwrap();
+            bus.start().unwrap();
+            // Bus runs in this thread
+        });
+
+        // Give the thread a moment to start
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        // Check if bus is running
+        {
+            let bus = bus_arc.lock().unwrap();
+            assert!(bus.is_running());
+        }
+
         let pattern = vec![PinValue::High, PinValue::Low, PinValue::High, PinValue::Low];
 
-        active_bus.set_test_pattern(pattern);
+        active_bus.set_test_pattern(pattern.clone());
         active_bus.set_pattern_interval(Duration::from_millis(10));
+
+        // Give the thread a moment to start
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         // Test that active bus can drive patterns
         active_bus.drive_pattern();
-        assert!(active_bus.is_running());
+        assert!(active_bus.test_pattern.eq(&pattern));
+
+        // Clean up - stop the bus and join the thread
+        {
+            let mut bus = bus_arc.lock().unwrap();
+            bus.stop().unwrap();
+        }
+
+        handle.join().unwrap();
     }
 }

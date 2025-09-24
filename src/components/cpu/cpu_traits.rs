@@ -1,6 +1,6 @@
 use crate::component::Component;
-use crate::components::cpu::cmos_65c02::CMOS65C02;
-use crate::components::cpu::mos_6502::{Registers, MOS6502};
+use crate::components::cpu::mos_6502::MOS6502;
+use crate::components::cpu::WDC65C02;
 
 pub trait CPU: Component {
     fn reset(&mut self);
@@ -71,7 +71,7 @@ impl MOS6502Family for MOS6502 {
     // Implement other methods...
 }
 
-impl CPU for CMOS65C02 {
+impl CPU for WDC65C02 {
     fn reset(&mut self) {
         todo!()
     }
@@ -97,9 +97,9 @@ impl CPU for CMOS65C02 {
     }
 }
 
-impl MOS6502Family for CMOS65C02 {
+impl MOS6502Family for WDC65C02 {
     fn lda(&mut self, value: u8) {
-        self.base_6502.lda(value)
+        self.base.lda(value)
     }
 
     fn sta(&mut self, address: u16) {
@@ -113,7 +113,7 @@ impl MOS6502Family for CMOS65C02 {
     // Implement other methods...
 }
 
-impl CMOS65C02Extensions for CMOS65C02 {
+impl CMOS65C02Extensions for WDC65C02 {
     fn bra(&mut self, address: u16) {
         self.bra(address)
     }

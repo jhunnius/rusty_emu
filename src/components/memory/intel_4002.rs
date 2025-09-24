@@ -327,7 +327,7 @@ impl Component for Intel4002 {
 
         while self.is_running() {
             self.update();
-            thread::sleep(Duration::from_micros(1));
+            thread::sleep(Duration::from_micros(10));
         }
     }
 

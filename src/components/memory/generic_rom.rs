@@ -253,7 +253,7 @@ impl Component for GenericRom {
 
         while self.base.is_running() {
             self.update();
-            thread::sleep(Duration::from_micros(1)); // Small delay to prevent busy waiting
+            thread::sleep(Duration::from_micros(10)); // Small delay to prevent busy waiting
         }
     }
 

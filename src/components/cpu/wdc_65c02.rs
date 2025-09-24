@@ -7,7 +7,7 @@ use crate::pin::Pin;
 
 /// WDC 65C02 - CMOS version of 6502 with additional instructions
 pub struct WDC65C02 {
-    base: MOS6502,
+    pub(crate) base: MOS6502,
     // 65C02-specific state
     stop_mode: bool,
     wait_mode: bool,

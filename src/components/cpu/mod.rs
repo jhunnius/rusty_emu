@@ -2,6 +2,7 @@
 pub mod mos_6502;
 pub mod wdc_65c02;
 pub mod intel_4004;
+mod cpu_traits;
 
 // Re-export the CPU types
 pub use mos_6502::MOS6502;
