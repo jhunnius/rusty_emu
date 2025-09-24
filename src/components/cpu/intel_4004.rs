@@ -193,7 +193,7 @@ impl Intel4004 {
         self.program_counter.inc();
 
         // Every 10 cycles, "calculate" next Fibonacci number
-        if self.cycle_count % 10 == 0 {
+        if self.cycle_count % 1000 == 0 {
             // Simple Fibonacci simulation
             let fib_index = (self.cycle_count / 10) as u8;
             self.accumulator = self.simulate_fibonacci(fib_index);
@@ -207,12 +207,12 @@ impl Intel4004 {
             _ => {
                 let mut a = 0;
                 let mut b = 1;
-                for _ in 2..=n {
-                    let next = a + b;
+                for _ in 2..=n%32 {
+                    let next: u32 = a + b;
                     a = b;
                     b = next;
                 }
-                b % 16 // Keep it in 4-bit range for demo
+                (b % 16) as u8 // Keep it in 4-bit range for demo
             }
         }
     }

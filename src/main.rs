@@ -40,11 +40,7 @@ fn main() {
         return;
     }
 
-    // Set starting program counter
-    if let Err(e) = mcs4.set_cpu_program_counter(U12::from(0x000)) {
-        eprintln!("Failed to set program counter: {}", e);
-        return;
-    }
+    mcs4.reset_system();
 
     // Display system information
     let info = mcs4.get_system_info();

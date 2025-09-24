@@ -9,7 +9,6 @@ use crate::component::Component;
 use crate::components::memory::intel_4001::Intel4001;
 use crate::components::memory::intel_4002::Intel4002;
 use crate::pin::Pin;
-use crate::types::U12;
 
 pub struct IntelMcs4 {
     components: HashMap<String, Arc<Mutex<dyn Component>>>,
@@ -147,18 +146,6 @@ impl IntelMcs4 {
 
         Err("RAM component not found".to_string())
     }
-    pub fn set_cpu_program_counter(&mut self, address: U12) -> Result<(), String> {
-        if let Some(cpu_component) = self.components.get_mut("cpu") {
-            if let Some(cpu) = cpu_component.as_any_mut().downcast_mut::<Intel4004>() {
-                cpu.program_counter = address;
-                Ok(())
-            } else {
-                Err("CPU component is not of type Intel 4004".to_string())
-            }
-        } else {
-            Err("CPU component not found".to_string())
-        }
-    }
     pub fn get_cpu_state(&self) -> Result<CpuState, String> {
         if let Some(cpu_component) = self.components.get("cpu") {
             if let Some(cpu) = cpu_component.as_any().downcast_ref::<Intel4004>() {
@@ -257,6 +244,7 @@ impl Component for IntelMcs4 {
 
     fn stop(&mut self) {
         self.stop();
+
     }
 
     fn is_running(&self) -> bool {
