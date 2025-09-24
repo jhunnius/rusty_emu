@@ -227,7 +227,7 @@ impl Intel4001 {
 
         // I/O operations occur when SYNC is high and CM-ROM is low
         if sync && !cm_rom {
-            let address_low = self.read_data_bus(); // Lower 4 bits of address from data bus
+            let _address_low = self.read_data_bus(); // Lower 4 bits of address from data bus
 
             // For I/O operations, the upper address bits determine the operation
             if cm_ram {
@@ -275,7 +275,7 @@ impl Component for Intel4001 {
         self.base.name()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
         self.base.pins()
     }
 
@@ -419,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_intel4001_latches() {
-        let mut rom = Intel4001::new("ROM_4001".to_string());
+        let rom = Intel4001::new("ROM_4001".to_string());
 
         // Initial state
         assert_eq!(rom.get_output_latch(), 0);

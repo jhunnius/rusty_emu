@@ -239,7 +239,7 @@ impl Component for GenericRam {
         self.base.name()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
         self.base.pins()
     }
 

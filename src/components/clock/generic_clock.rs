@@ -147,7 +147,7 @@ impl Component for GenericClock {
         self.base.name()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
         self.base.pins()
     }
 
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_clock_timing_calculation() {
-        let clock = GenericClock::new("TEST_CLK".to_string(), 1.0); // 1Hz
+        let _clock = GenericClock::new("TEST_CLK".to_string(), 1.0); // 1Hz
         let period = GenericClock::frequency_to_duration(1.0);
         assert_eq!(period, Duration::from_secs(1));
 

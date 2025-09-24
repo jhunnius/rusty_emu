@@ -68,7 +68,7 @@ impl Component for WDC65C02 {
         self.base.name()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
         self.base.pins()
     }
 

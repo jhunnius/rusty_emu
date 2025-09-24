@@ -8,7 +8,7 @@ use crate::pin::Pin;
 // Component is now inherently thread-safe
 pub trait Component: Send + Sync {
     fn name(&self) -> String;
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>>;
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>>;
     fn get_pin(&self, name: &str) -> Result<Arc<Mutex<Pin>>, String>;
     fn update(&mut self);
     fn run(&mut self);
@@ -61,8 +61,8 @@ impl Component for BaseComponent {
         self.name.clone()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
-        &self.pins
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
+        self.pins.clone()
     }
 
     fn get_pin(&self, name: &str) -> Result<Arc<Mutex<Pin>>, String> {

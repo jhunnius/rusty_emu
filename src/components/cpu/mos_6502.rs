@@ -177,7 +177,7 @@ impl Component for MOS6502 {
         self.base.name()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
         self.base.pins()
     }
 
@@ -190,7 +190,7 @@ impl Component for MOS6502 {
             return;
         }
 
-        let (irq, nmi, reset, rdy) = self.read_control_pins();
+        let (_irq, _nmi, reset, rdy) = self.read_control_pins();
 
         if reset && !self.is_reset {
             self.reset();

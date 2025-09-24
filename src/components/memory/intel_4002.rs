@@ -231,7 +231,7 @@ impl Intel4002 {
                 let address_instruction = self.read_data_bus();
 
                 // Decode the address based on instruction type
-                let (bank, ram_address) = self.decode_address(self.last_address, address_instruction);
+                let (_bank, ram_address) = self.decode_address(self.last_address, address_instruction);
 
                 if ram_address < 40 {
                     // Read from RAM and output data
@@ -287,7 +287,7 @@ impl Component for Intel4002 {
         self.base.name()
     }
 
-    fn pins(&self) -> &HashMap<String, Arc<Mutex<Pin>>> {
+    fn pins(&self) -> HashMap<String, Arc<Mutex<Pin>>> {
         self.base.pins()
     }
 
