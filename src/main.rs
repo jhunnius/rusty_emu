@@ -1,3 +1,4 @@
+use rusty_emu::types::U12;
 use rusty_emu::systems::intel_mcs_4::IntelMcs4;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -40,7 +41,7 @@ fn main() {
     }
 
     // Set starting program counter
-    if let Err(e) = mcs4.set_cpu_program_counter(0x000) {
+    if let Err(e) = mcs4.set_cpu_program_counter(U12::from(0x000)) {
         eprintln!("Failed to set program counter: {}", e);
         return;
     }
@@ -58,7 +59,7 @@ fn main() {
     println!();
 
     // Run the Fibonacci demo
-    run_fibonacci_demo(&mut mcs4);
+    run_fibonacci_demo(mcs4);
 }
 
 fn compile_fibonacci_program() -> Vec<u8> {
@@ -74,7 +75,7 @@ fn compile_fibonacci_program() -> Vec<u8> {
     ]
 }
 
-fn run_fibonacci_demo(mcs4: &mut IntelMcs4) {
+fn run_fibonacci_demo(mcs4: IntelMcs4) {
     let start_time = Instant::now();
 
     println!("Cycle | Fibonacci | Accumulator | PC");

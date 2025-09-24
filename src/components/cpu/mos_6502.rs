@@ -101,7 +101,7 @@ impl MOS6502 {
         }
     }
 
-    fn read_data_bus(&self) -> u8 {
+    fn _read_data_bus(&self) -> u8 {
         let mut data = 0;
 
         for i in 0..8 {

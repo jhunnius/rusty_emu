@@ -352,11 +352,11 @@ impl Intel4001 {
         self.input_latch
     }
 
-    pub fn get_io_mode(&self) -> IoMode {
+    fn get_io_mode(&self) -> IoMode {
         self.io_mode
     }
 
-    pub fn set_io_mode(&mut self, mode: IoMode) {
+    fn set_io_mode(&mut self, mode: IoMode) {
         self.io_mode = mode;
         match mode {
             IoMode::Input => self.tri_state_io_pins(),

@@ -9,6 +9,7 @@ use crate::component::Component;
 use crate::components::memory::intel_4001::Intel4001;
 use crate::components::memory::intel_4002::Intel4002;
 use crate::pin::Pin;
+use crate::types::U12;
 
 pub struct IntelMcs4 {
     components: HashMap<String, Arc<Mutex<dyn Component>>>,
@@ -146,50 +147,43 @@ impl IntelMcs4 {
 
         Err("RAM component not found".to_string())
     }
-
-    pub fn set_cpu_program_counter(&mut self, address: u16) -> Result<(), String> {
-        if let Some(cpu_component) = self.components.get("cpu") {
-            if let Ok(mut cpu) = cpu_component.lock() {
-                // Downcast to Intel4004
-                if let Some(cpu_ref) = cpu.as_any_mut().downcast_mut::<Intel4004>() {
-                    cpu_ref.set_program_counter(address);
-                    return Ok(());
-                }
+    pub fn set_cpu_program_counter(&mut self, address: U12) -> Result<(), String> {
+        if let Some(cpu_component) = self.components.get_mut("cpu") {
+            if let Some(cpu) = cpu_component.as_any_mut().downcast_mut::<Intel4004>() {
+                cpu.program_counter = address;
+                Ok(())
+            } else {
+                Err("CPU component is not of type Intel 4004".to_string())
             }
+        } else {
+            Err("CPU component not found".to_string())
         }
-
-        Err("CPU component not found".to_string())
     }
-
     pub fn get_cpu_state(&self) -> Result<CpuState, String> {
         if let Some(cpu_component) = self.components.get("cpu") {
-            if let Ok(cpu) = cpu_component.lock() {
-                if let Some(cpu_ref) = cpu.as_any().downcast_ref::<Intel4004>() {
-                    return Ok(CpuState {
-                        program_counter: cpu_ref.get_program_counter(),
-                        accumulator: cpu_ref.get_accumulator(),
-                        carry: cpu_ref.get_carry(),
-                        stack_pointer: cpu_ref.get_stack_pointer(),
-                        cycle_count: cpu_ref.get_cycle_count(),
-                    });
-                }
+            if let Some(cpu) = cpu_component.as_any().downcast_ref::<Intel4004>() {
+                return Ok(CpuState {
+                    program_counter: cpu.get_program_counter(),
+                    accumulator: cpu.get_accumulator(),
+                    carry: cpu.get_carry(),
+                    stack_pointer: cpu.get_stack_pointer(),
+                    cycle_count: cpu.get_cycle_count(),
+                });
+            } else {
+                Err("CPU component is not of type Intel 4004".to_string())
             }
+        } else {
+            Err("CPU component not found".to_string())
         }
-
-        Err("CPU component not found".to_string())
     }
-
     pub fn reset_system(&mut self) {
         println!("Resetting MCS-4 system...");
-        if let Some(cpu_component) = self.components.get("cpu") {
-            if let Ok(mut cpu) = cpu_component.lock() {
-                if let Some(cpu_ref) = cpu.as_any_mut().downcast_mut::<Intel4004>() {
-                    cpu_ref.reset();
-                }
+        if let Some(cpu_component) = self.components.get_mut("cpu") {
+            if let Some(cpu) = cpu_component.as_any_mut().downcast_mut::<Intel4004>() {
+                    cpu.reset();
             }
         }
     }
-
     pub fn get_system_info(&self) -> SystemInfo {
         SystemInfo {
             cpu_speed: 750_000.0,

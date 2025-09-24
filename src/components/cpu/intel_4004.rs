@@ -26,7 +26,7 @@ pub struct Intel4004 {
     accumulator: u8,
     carry: bool,
     index_registers: [u8; 16],
-    program_counter: U12,
+    pub(crate) program_counter: U12,
     stack: [U12; 3],
     stack_pointer: u8,
     cycle_count: u64,

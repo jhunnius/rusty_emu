@@ -4,7 +4,7 @@ pub mod connection;
 pub mod components;
 pub mod systems;
 mod bus;
-mod types;
+pub mod types;
 
 // Re-export commonly used items for easier importing
 pub use component::{Component, BaseComponent};
