@@ -1,5 +1,8 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::thread;
 use std::time::Duration;
 
@@ -15,12 +18,21 @@ pub trait Component: Send + Sync {
     fn stop(&mut self);
     fn is_running(&self) -> bool;
 }
-
+pub trait RunnableComponent: Component + Send + 'static {
+    fn spawn_in_thread(mut self) -> thread::JoinHandle<()>
+    where
+        Self: Sized,
+    {
+        thread::spawn(move || {
+            self.run();
+        })
+    }
+}
 // BaseComponent uses AtomicBool for thread-safe state
 pub struct BaseComponent {
     name: String,
     pins: HashMap<String, Arc<Mutex<Pin>>>,
-    running: AtomicBool,  // Thread-safe running state
+    running: AtomicBool, // Thread-safe running state
 }
 
 impl BaseComponent {
@@ -44,12 +56,18 @@ impl BaseComponent {
         self.running.store(running, Ordering::SeqCst);
     }
 
-    pub fn create_pin_map(pin_names: &[&str], component_name: &str) -> HashMap<String, Arc<Mutex<Pin>>> {
+    pub fn create_pin_map(
+        pin_names: &[&str],
+        component_name: &str,
+    ) -> HashMap<String, Arc<Mutex<Pin>>> {
         let mut pins = HashMap::new();
         for pin_name in pin_names {
             pins.insert(
                 pin_name.to_string(),
-                Arc::new(Mutex::new(Pin::new(format!("{}_{}", component_name, pin_name))))
+                Arc::new(Mutex::new(Pin::new(format!(
+                    "{}_{}",
+                    component_name, pin_name
+                )))),
             );
         }
         pins
@@ -66,7 +84,8 @@ impl Component for BaseComponent {
     }
 
     fn get_pin(&self, name: &str) -> Result<Arc<Mutex<Pin>>, String> {
-        self.pins.get(name)
+        self.pins
+            .get(name)
             .cloned()
             .ok_or_else(|| format!("Pin {} not found", name))
     }
@@ -88,6 +107,8 @@ impl Component for BaseComponent {
     }
 
     fn is_running(&self) -> bool {
-        self.is_running()
+        self.running.load(Ordering::SeqCst)
     }
 }
+
+impl RunnableComponent for BaseComponent {}

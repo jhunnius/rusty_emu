@@ -43,9 +43,9 @@ impl GenericRam {
         }
 
         // Control pins
-        pin_names.push("CS".parse().unwrap());    // Chip Select
-        pin_names.push("WE".parse().unwrap());    // Write Enable
-        pin_names.push("OE".parse().unwrap());    // Output Enable
+        pin_names.push("CS".parse().unwrap()); // Chip Select
+        pin_names.push("WE".parse().unwrap()); // Write Enable
+        pin_names.push("OE".parse().unwrap()); // Output Enable
 
         let pin_refs: Vec<&str> = pin_names.iter().map(|s| s.as_str()).collect();
         let pins = BaseComponent::create_pin_map(&pin_refs, &name);
@@ -70,7 +70,9 @@ impl GenericRam {
         if offset + data.len() > self.memory.len() {
             return Err(format!(
                 "Data exceeds RAM capacity: offset {} + data length {} > RAM size {}",
-                offset, data.len(), self.memory.len()
+                offset,
+                data.len(),
+                self.memory.len()
             ));
         }
 
@@ -82,7 +84,9 @@ impl GenericRam {
         if offset + data.len() > self.memory.len() {
             return Err(format!(
                 "Data exceeds RAM capacity: offset {} + data length {} > RAM size {}",
-                offset, data.len(), self.memory.len()
+                offset,
+                data.len(),
+                self.memory.len()
             ));
         }
 
@@ -206,7 +210,8 @@ impl GenericRam {
         for i in 0..self.data_width {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                    pin_guard
+                        .set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
                 }
             }
         }

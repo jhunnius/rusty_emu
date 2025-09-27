@@ -1,12 +1,12 @@
-pub mod component;
-pub mod pin;
-pub mod connection;
-pub mod components;
-pub mod systems;
 mod bus;
+pub mod component;
+pub mod components;
+pub mod connection;
+pub mod pin;
+pub mod systems;
 pub mod types;
 
 // Re-export commonly used items for easier importing
-pub use component::{Component, BaseComponent};
-pub use pin::{Pin, PinValue};
+pub use component::{BaseComponent, Component};
 pub use connection::connect_pins;
+pub use pin::{Pin, PinValue};

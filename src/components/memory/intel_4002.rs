@@ -29,12 +29,12 @@ impl Intel4002 {
         // - 4 output port pins (O0-O3)
         // - Control pins: SYNC, CM-ROM, CM-RAM, RESET
         let pin_names = vec![
-            "D0", "D1", "D2", "D3",    // Data/Address pins
-            "O0", "O1", "O2", "O3",    // Output port pins
-            "SYNC",                     // Sync signal
-            "CM_ROM",                   // ROM Chip Select
-            "CM_RAM",                   // RAM Chip Select
-            "RESET",                    // Reset
+            "D0", "D1", "D2", "D3", // Data/Address pins
+            "O0", "O1", "O2", "O3",     // Output port pins
+            "SYNC",   // Sync signal
+            "CM_ROM", // ROM Chip Select
+            "CM_RAM", // RAM Chip Select
+            "RESET",  // Reset
         ];
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
@@ -119,7 +119,8 @@ impl Intel4002 {
         for i in 0..4 {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                    pin_guard
+                        .set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
                 }
             }
         }
@@ -231,7 +232,8 @@ impl Intel4002 {
                 let address_instruction = self.read_data_bus();
 
                 // Decode the address based on instruction type
-                let (_bank, ram_address) = self.decode_address(self.last_address, address_instruction);
+                let (_bank, ram_address) =
+                    self.decode_address(self.last_address, address_instruction);
 
                 if ram_address < 40 {
                     // Read from RAM and output data
@@ -415,7 +417,7 @@ impl Intel4002 {
         } else if start > 40 {
             Vec::new()
         } else {
-           self.memory[start..40].to_vec()
+            self.memory[start..40].to_vec()
         }
     }
 }
@@ -475,7 +477,7 @@ mod tests {
         let mut ram = Intel4002::new("RAM_4002".to_string());
 
         // Write test data to different banks
-        ram.write_ram(0, 0x01).unwrap();  // Bank 0
+        ram.write_ram(0, 0x01).unwrap(); // Bank 0
         ram.write_ram(16, 0x02).unwrap(); // Bank 1
         ram.write_ram(32, 0x03).unwrap(); // Bank 2
 

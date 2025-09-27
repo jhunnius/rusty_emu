@@ -92,7 +92,12 @@ impl Pin {
         self.set_driver_with_strength(driver_name, value, strength);
     }
 
-    pub fn set_driver_with_strength(&mut self, driver_name: Option<String>, value: PinValue, strength: DriveStrength) {
+    pub fn set_driver_with_strength(
+        &mut self,
+        driver_name: Option<String>,
+        value: PinValue,
+        strength: DriveStrength,
+    ) {
         let driver_id = driver_name.unwrap_or_else(|| "anonymous".to_string());
 
         if value == PinValue::HighZ && strength == DriveStrength::HighImpedance {
@@ -140,7 +145,11 @@ impl Pin {
     }
 
     pub fn connect_to(&mut self, other_pin: Arc<Mutex<Pin>>) {
-        if !self.connected_pins.iter().any(|p| Arc::ptr_eq(p, &other_pin)) {
+        if !self
+            .connected_pins
+            .iter()
+            .any(|p| Arc::ptr_eq(p, &other_pin))
+        {
             self.connected_pins.push(other_pin);
         }
     }
@@ -190,7 +199,9 @@ impl Pin {
         }
 
         // Get all drivers with the strongest strength
-        let strong_drivers: Vec<PinValue> = self.drivers.values()
+        let strong_drivers: Vec<PinValue> = self
+            .drivers
+            .values()
             .filter(|(_, strength)| *strength == max_strength)
             .map(|(value, _)| *value)
             .collect();
@@ -216,7 +227,9 @@ impl Pin {
     }
 
     pub fn is_connected_to(&self, other_pin: &Arc<Mutex<Pin>>) -> bool {
-        self.connected_pins.iter().any(|p| Arc::ptr_eq(p, other_pin))
+        self.connected_pins
+            .iter()
+            .any(|p| Arc::ptr_eq(p, other_pin))
     }
 
     pub fn get_connection_count(&self) -> usize {
@@ -248,7 +261,9 @@ impl std::fmt::Display for Pin {
         if !self.drivers.is_empty() {
             write!(f, " [drivers: ")?;
             for (i, (driver, (value, strength))) in self.drivers.iter().enumerate() {
-                if i > 0 { write!(f, ", ")?; }
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
                 write!(f, "{}={}({})", driver, value.to_char(), *strength as u8)?;
             }
             write!(f, "]")?;
@@ -301,7 +316,7 @@ mod tests {
         pin.set_driver_with_strength(
             Some("weak".to_string()),
             PinValue::High,
-            DriveStrength::Weak
+            DriveStrength::Weak,
         );
         assert_eq!(pin.read(), PinValue::High);
 
@@ -309,7 +324,7 @@ mod tests {
         pin.set_driver_with_strength(
             Some("strong".to_string()),
             PinValue::Low,
-            DriveStrength::Strong
+            DriveStrength::Strong,
         );
         assert_eq!(pin.read(), PinValue::Low);
     }

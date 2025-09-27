@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::component::{BaseComponent, Component};
+use crate::component::{BaseComponent, Component, RunnableComponent};
 use crate::pin::{Pin, PinValue};
 use crate::types::U12;
 
@@ -44,8 +44,7 @@ pub struct Intel4004 {
 impl Intel4004 {
     pub fn new(name: String, clock_speed: f64) -> Self {
         let pin_names = vec![
-            "D0", "D1", "D2", "D3",
-            "SYNC", "CM_ROM", "CM_RAM", "TEST", "RESET", "PHI1", "PHI2",
+            "D0", "D1", "D2", "D3", "SYNC", "CM_ROM", "CM_RAM", "TEST", "RESET", "PHI1", "PHI2",
         ];
 
         let pin_strings: Vec<String> = pin_names.iter().map(|s| s.to_string()).collect();
@@ -133,7 +132,8 @@ impl Intel4004 {
         for i in 0..4 {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                    pin_guard
+                        .set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
                 }
             }
         }
@@ -207,7 +207,7 @@ impl Intel4004 {
             _ => {
                 let mut a = 0;
                 let mut b = 1;
-                for _ in 2..=n%32 {
+                for _ in 2..=n % 32 {
                     let next: u32 = a + b;
                     a = b;
                     b = next;
@@ -291,6 +291,7 @@ impl Component for Intel4004 {
     }
 
     fn run(&mut self) {
+        // Time-slice model: run in a loop calling update() each cycle
         self.base.set_running(true);
         self.reset();
 
@@ -311,4 +312,8 @@ impl Component for Intel4004 {
     fn is_running(&self) -> bool {
         self.base.is_running()
     }
+}
+
+impl RunnableComponent for Intel4004 {
+    // No custom run_loop needed - uses default Component::run() method
 }

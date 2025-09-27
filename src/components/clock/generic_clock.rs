@@ -8,8 +8,8 @@ use crate::pin::{Pin, PinValue};
 
 pub struct GenericClock {
     base: BaseComponent,
-    frequency: f64,          // Frequency in Hz
-    duty_cycle: f64,         // Duty cycle as percentage (0.0 to 1.0)
+    frequency: f64,  // Frequency in Hz
+    duty_cycle: f64, // Duty cycle as percentage (0.0 to 1.0)
     current_state: PinValue,
     last_transition: Instant,
     half_period: Duration,
@@ -232,8 +232,13 @@ impl GenericClock {
         let half_period = self.half_period;
 
         thread::spawn(move || {
-            for i in 0..count * 2 { // Each cycle has two transitions
-                let state = if i % 2 == 0 { PinValue::High } else { PinValue::Low };
+            for i in 0..count * 2 {
+                // Each cycle has two transitions
+                let state = if i % 2 == 0 {
+                    PinValue::High
+                } else {
+                    PinValue::Low
+                };
 
                 if let Ok(mut pin_guard) = clock_pin.lock() {
                     pin_guard.set_driver(Some(clock_name.clone()), state);
@@ -313,6 +318,6 @@ mod tests {
     fn test_clock_burst() {
         let mut clock = GenericClock::new("BURST_CLK".to_string(), 1_000_000.0);
         clock.generate_clock_burst(5); // 5 clock cycles
-        // Note: In a real test, you'd want to verify the pin states
+                                       // Note: In a real test, you'd want to verify the pin states
     }
 }

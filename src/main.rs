@@ -1,5 +1,5 @@
-use rusty_emu::types::U12;
 use rusty_emu::systems::intel_mcs_4::IntelMcs4;
+use rusty_emu::types::U12;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -67,7 +67,7 @@ fn compile_fibonacci_program() -> Vec<u8> {
         0x31, // SRC 1
         0x60, // JUN 0
         0x00, // Address
-        // Pad with zeros
+              // Pad with zeros
     ]
 }
 
@@ -91,7 +91,8 @@ fn run_fibonacci_demo(mcs4: IntelMcs4) {
     let mut last_fibonacci = 0;
     let mut iteration = 0;
 
-    while iteration < 20 { // Run for 20 iterations
+    while iteration < 20 {
+        // Run for 20 iterations
         thread::sleep(Duration::from_millis(200));
 
         if let Ok(system) = mcs4_arc.lock() {
@@ -99,15 +100,21 @@ fn run_fibonacci_demo(mcs4: IntelMcs4) {
                 let current_fibonacci = state.accumulator;
 
                 if current_fibonacci != last_fibonacci {
-                    println!("{:5} | {:9} | {:11} | {:04X}",
-                             state.cycle_count, current_fibonacci, state.accumulator, state.program_counter);
+                    println!(
+                        "{:5} | {:9} | {:11} | {:04X}",
+                        state.cycle_count,
+                        current_fibonacci,
+                        state.accumulator,
+                        state.program_counter
+                    );
                     last_fibonacci = current_fibonacci;
                     iteration += 1;
                 }
             }
         }
 
-        if iteration >= 15 { // Stop after 15 Fibonacci numbers
+        if iteration >= 15 {
+            // Stop after 15 Fibonacci numbers
             if let Ok(mut system) = mcs4_arc.lock() {
                 system.stop();
             }

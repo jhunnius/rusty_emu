@@ -25,17 +25,29 @@ impl GenericRom {
 
         // Create address pins (A0, A1, A2, ...)
         for i in 0..address_width {
-            pins.insert(format!("A{}", i), Arc::new(Mutex::new(Pin::new(format!("{}_A{}", name, i)))));
+            pins.insert(
+                format!("A{}", i),
+                Arc::new(Mutex::new(Pin::new(format!("{}_A{}", name, i)))),
+            );
         }
 
         // Create data pins (D0, D1, D2, ...)
         for i in 0..data_width {
-            pins.insert(format!("D{}", i), Arc::new(Mutex::new(Pin::new(format!("{}_D{}", name, i)))));
+            pins.insert(
+                format!("D{}", i),
+                Arc::new(Mutex::new(Pin::new(format!("{}_D{}", name, i)))),
+            );
         }
 
         // Control pins
-        pins.insert("CS".to_string(), Arc::new(Mutex::new(Pin::new(format!("{}_CS", name)))));
-        pins.insert("OE".to_string(), Arc::new(Mutex::new(Pin::new(format!("{}_OE", name)))));
+        pins.insert(
+            "CS".to_string(),
+            Arc::new(Mutex::new(Pin::new(format!("{}_CS", name)))),
+        );
+        pins.insert(
+            "OE".to_string(),
+            Arc::new(Mutex::new(Pin::new(format!("{}_OE", name)))),
+        );
 
         let memory = vec![0u8; size];
 
@@ -70,7 +82,11 @@ impl GenericRom {
             Err(_) => Err("Invalid hex data".to_string()),
         }
     }
-    pub fn load_from_binary_file<P: AsRef<Path>>(&mut self, path: P, offset: usize) -> Result<(), String> {
+    pub fn load_from_binary_file<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        offset: usize,
+    ) -> Result<(), String> {
         let path_ref = path.as_ref();
 
         // Check if file exists
@@ -80,14 +96,18 @@ impl GenericRom {
 
         // Check if offset is within bounds
         if offset >= self.memory.len() {
-            return Err(format!("Offset {} exceeds ROM size {}", offset, self.memory.len()));
+            return Err(format!(
+                "Offset {} exceeds ROM size {}",
+                offset,
+                self.memory.len()
+            ));
         }
 
-        let mut file = File::open(path_ref)
-            .map_err(|e| format!("Failed to open file: {}", e))?;
+        let mut file = File::open(path_ref).map_err(|e| format!("Failed to open file: {}", e))?;
 
         // Get file size
-        let metadata = file.metadata()
+        let metadata = file
+            .metadata()
             .map_err(|e| format!("Failed to get file metadata: {}", e))?;
         let file_size = metadata.len() as usize;
 
@@ -95,7 +115,9 @@ impl GenericRom {
         if offset + file_size > self.memory.len() {
             return Err(format!(
                 "File too large: offset {} + file size {} > ROM size {}",
-                offset, file_size, self.memory.len()
+                offset,
+                file_size,
+                self.memory.len()
             ));
         }
 
@@ -114,14 +136,15 @@ impl GenericRom {
         if offset + data.len() > self.memory.len() {
             return Err(format!(
                 "Data exceeds ROM capacity: offset {} + data length {} > ROM size {}",
-                offset, data.len(), self.memory.len()
+                offset,
+                data.len(),
+                self.memory.len()
             ));
         }
 
         self.memory[offset..offset + data.len()].copy_from_slice(data);
         Ok(())
     }
-
 
     fn read_address(&self) -> u32 {
         let mut address = 0;
@@ -170,7 +193,10 @@ impl GenericRom {
             for i in 0..self.data_width {
                 if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                     if let Ok(mut pin_guard) = pin.lock() {
-                        pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                        pin_guard.set_driver(
+                            Some(self.base.get_name().parse().unwrap()),
+                            PinValue::HighZ,
+                        );
                     }
                 }
             }
@@ -227,7 +253,10 @@ impl Component for GenericRom {
                     for i in 0..self.data_width {
                         if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                             if let Ok(mut pin_guard) = pin.lock() {
-                                pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                                pin_guard.set_driver(
+                                    Some(self.base.get_name().parse().unwrap()),
+                                    PinValue::HighZ,
+                                );
                             }
                         }
                     }
@@ -237,7 +266,10 @@ impl Component for GenericRom {
                 for i in 0..self.data_width {
                     if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                         if let Ok(mut pin_guard) = pin.lock() {
-                            pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                            pin_guard.set_driver(
+                                Some(self.base.get_name().parse().unwrap()),
+                                PinValue::HighZ,
+                            );
                         }
                     }
                 }
@@ -264,7 +296,8 @@ impl Component for GenericRom {
         for i in 0..self.data_width {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
+                    pin_guard
+                        .set_driver(Some(self.base.get_name().parse().unwrap()), PinValue::HighZ);
                 }
             }
         }
@@ -277,9 +310,9 @@ impl Component for GenericRom {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::fs;
     use tempfile::NamedTempFile;
-    use super::*;
 
     #[test]
     fn test_rom_creation() {

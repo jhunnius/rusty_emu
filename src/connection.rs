@@ -1,6 +1,6 @@
+use crate::pin::Pin;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use crate::pin::Pin;
 
 /// Manages electrical connections between pins
 pub struct ConnectionManager {
@@ -25,35 +25,49 @@ impl ConnectionManager {
     }
 
     /// Connect two pins bidirectionally
-    pub fn connect_pins(&mut self, pin1: Arc<Mutex<Pin>>, pin2: Arc<Mutex<Pin>>) -> Result<(), String> {
+    pub fn connect_pins(
+        &mut self,
+        pin1: Arc<Mutex<Pin>>,
+        pin2: Arc<Mutex<Pin>>,
+    ) -> Result<(), String> {
         let pin1_name = {
-            let p1 = pin1.lock().map_err(|e| format!("Failed to lock pin1: {}", e))?;
+            let p1 = pin1
+                .lock()
+                .map_err(|e| format!("Failed to lock pin1: {}", e))?;
             p1.name().to_string()
         };
 
         let pin2_name = {
-            let p2 = pin2.lock().map_err(|e| format!("Failed to lock pin2: {}", e))?;
+            let p2 = pin2
+                .lock()
+                .map_err(|e| format!("Failed to lock pin2: {}", e))?;
             p2.name().to_string()
         };
 
         // Connect pin1 to pin2
         {
-            let mut p1 = pin1.lock().map_err(|e| format!("Failed to lock pin1: {}", e))?;
+            let mut p1 = pin1
+                .lock()
+                .map_err(|e| format!("Failed to lock pin1: {}", e))?;
             p1.connect_to(pin2.clone());
         }
 
         // Connect pin2 to pin1 (bidirectional)
         {
-            let mut p2 = pin2.lock().map_err(|e| format!("Failed to lock pin2: {}", e))?;
+            let mut p2 = pin2
+                .lock()
+                .map_err(|e| format!("Failed to lock pin2: {}", e))?;
             p2.connect_to(pin1.clone());
         }
 
         // Update connection graph
-        self.connections.entry(pin1_name.clone())
+        self.connections
+            .entry(pin1_name.clone())
             .or_insert_with(Vec::new)
             .push(pin2_name.clone());
 
-        self.connections.entry(pin2_name)
+        self.connections
+            .entry(pin2_name)
             .or_insert_with(Vec::new)
             .push(pin1_name);
 
@@ -67,7 +81,7 @@ impl ConnectionManager {
         }
 
         for i in 0..pins.len() {
-            for j in i+1..pins.len() {
+            for j in i + 1..pins.len() {
                 self.connect_pins(pins[i].clone(), pins[j].clone())?;
             }
         }
@@ -76,26 +90,38 @@ impl ConnectionManager {
     }
 
     /// Disconnect two pins
-    pub fn disconnect_pins(&mut self, pin1: &Arc<Mutex<Pin>>, pin2: &Arc<Mutex<Pin>>) -> Result<(), String> {
+    pub fn disconnect_pins(
+        &mut self,
+        pin1: &Arc<Mutex<Pin>>,
+        pin2: &Arc<Mutex<Pin>>,
+    ) -> Result<(), String> {
         let pin1_name = {
-            let p1 = pin1.lock().map_err(|e| format!("Failed to lock pin1: {}", e))?;
+            let p1 = pin1
+                .lock()
+                .map_err(|e| format!("Failed to lock pin1: {}", e))?;
             p1.name().to_string()
         };
 
         let pin2_name = {
-            let p2 = pin2.lock().map_err(|e| format!("Failed to lock pin2: {}", e))?;
+            let p2 = pin2
+                .lock()
+                .map_err(|e| format!("Failed to lock pin2: {}", e))?;
             p2.name().to_string()
         };
 
         // Disconnect pin1 from pin2
         {
-            let mut p1 = pin1.lock().map_err(|e| format!("Failed to lock pin1: {}", e))?;
+            let mut p1 = pin1
+                .lock()
+                .map_err(|e| format!("Failed to lock pin1: {}", e))?;
             p1.disconnect_from_pin(pin2);
         }
 
         // Disconnect pin2 from pin1
         {
-            let mut p2 = pin2.lock().map_err(|e| format!("Failed to lock pin2: {}", e))?;
+            let mut p2 = pin2
+                .lock()
+                .map_err(|e| format!("Failed to lock pin2: {}", e))?;
             p2.disconnect_from_pin(pin1);
         }
 
@@ -118,7 +144,8 @@ impl ConnectionManager {
 
     /// Check if two pins are connected
     pub fn are_connected(&self, pin1_name: &str, pin2_name: &str) -> bool {
-        self.connections.get(pin1_name)
+        self.connections
+            .get(pin1_name)
             .map(|connections| connections.contains(&pin2_name.to_string()))
             .unwrap_or(false)
     }
@@ -126,12 +153,15 @@ impl ConnectionManager {
     /// Disconnect all pins from a given pin
     pub fn disconnect_all(&mut self, pin: &Arc<Mutex<Pin>>) -> Result<(), String> {
         let pin_name = {
-            let p = pin.lock().map_err(|e| format!("Failed to lock pin: {}", e))?;
+            let p = pin
+                .lock()
+                .map_err(|e| format!("Failed to lock pin: {}", e))?;
             p.name().to_string()
         };
 
         // Get all connected pin names before disconnecting
-        let connected_names: Vec<String> = self.connections
+        let connected_names: Vec<String> = self
+            .connections
             .get(&pin_name)
             .map(|v| v.clone())
             .unwrap_or_default();
@@ -152,7 +182,9 @@ impl ConnectionManager {
 
         // Clear the pin's internal connections
         {
-            let mut p = pin.lock().map_err(|e| format!("Failed to lock pin: {}", e))?;
+            let mut p = pin
+                .lock()
+                .map_err(|e| format!("Failed to lock pin: {}", e))?;
             p.clear_connections();
         }
 

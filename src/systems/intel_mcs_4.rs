@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use crate::component::Component;
 use crate::components::clock::generic_clock::GenericClock;
 use crate::components::cpu::intel_4004::Intel4004;
-use crate::component::Component;
 use crate::components::memory::intel_4001::Intel4001;
 use crate::components::memory::intel_4002::Intel4002;
 use crate::pin::Pin;
@@ -29,23 +29,29 @@ impl IntelMcs4 {
     fn initialize_system(&mut self) {
         self.components.insert(
             "cpu".to_string(),
-            Arc::new(Mutex::new(Intel4004::new("CPU_4004".to_string(), 750_000.0)))
+            Arc::new(Mutex::new(Intel4004::new(
+                "CPU_4004".to_string(),
+                750_000.0,
+            ))),
         );
         self.components.insert(
             "clock".to_string(),
-            Arc::new(Mutex::new(GenericClock::new("SYSTEM_CLOCK".to_string(), 750_000.0)))
+            Arc::new(Mutex::new(GenericClock::new(
+                "SYSTEM_CLOCK".to_string(),
+                750_000.0,
+            ))),
         );
         self.components.insert(
             "ram".to_string(),
-            Arc::new(Mutex::new(Intel4002::new("RAM_4002".to_string())))
+            Arc::new(Mutex::new(Intel4002::new("RAM_4002".to_string()))),
         );
         self.components.insert(
             "rom1".to_string(),
-            Arc::new(Mutex::new(Intel4001::new("ROM_4001_1".to_string())))
+            Arc::new(Mutex::new(Intel4001::new("ROM_4001_1".to_string()))),
         );
         self.components.insert(
             "rom2".to_string(),
-            Arc::new(Mutex::new(Intel4001::new("ROM_4001_2".to_string())))
+            Arc::new(Mutex::new(Intel4001::new("ROM_4001_2".to_string()))),
         );
     }
 
@@ -118,7 +124,12 @@ impl IntelMcs4 {
         Ok(())
     }
 
-    pub fn load_rom_data(&mut self, rom_chip: usize, data: Vec<u8>, offset: usize) -> Result<(), String> {
+    pub fn load_rom_data(
+        &mut self,
+        rom_chip: usize,
+        data: Vec<u8>,
+        offset: usize,
+    ) -> Result<(), String> {
         let rom_key = match rom_chip {
             1 => "rom1",
             2 => "rom2",
@@ -128,7 +139,12 @@ impl IntelMcs4 {
         if let Some(rom_component) = self.components.get(rom_key) {
             if let Ok(_rom) = rom_component.lock() {
                 // For now, just log the operation
-                println!("Loaded {} bytes into ROM{} at offset {}", data.len(), rom_chip, offset);
+                println!(
+                    "Loaded {} bytes into ROM{} at offset {}",
+                    data.len(),
+                    rom_chip,
+                    offset
+                );
                 return Ok(());
             }
         }
@@ -167,7 +183,7 @@ impl IntelMcs4 {
         println!("Resetting MCS-4 system...");
         if let Some(cpu_component) = self.components.get_mut("cpu") {
             if let Some(cpu) = cpu_component.as_any_mut().downcast_mut::<Intel4004>() {
-                    cpu.reset();
+                cpu.reset();
             }
         }
     }
@@ -181,9 +197,13 @@ impl IntelMcs4 {
     }
 
     pub fn get_connection_graph(&self) -> Vec<Vec<String>> {
-        vec![
-            vec!["cpu".to_string(), "clock".to_string(), "ram".to_string(), "rom1".to_string(), "rom2".to_string()],
-        ]
+        vec![vec![
+            "cpu".to_string(),
+            "clock".to_string(),
+            "ram".to_string(),
+            "rom1".to_string(),
+            "rom2".to_string(),
+        ]]
     }
 }
 
@@ -244,7 +264,6 @@ impl Component for IntelMcs4 {
 
     fn stop(&mut self) {
         self.stop();
-
     }
 
     fn is_running(&self) -> bool {

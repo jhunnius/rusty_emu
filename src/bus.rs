@@ -4,7 +4,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::component::{BaseComponent, Component};
-use crate::pin::{Pin, PinValue, DriveStrength};
+use crate::pin::{DriveStrength, Pin, PinValue};
 
 pub struct GenericBus {
     base: BaseComponent,
@@ -105,7 +105,8 @@ impl GenericBus {
         }
 
         // Find the strongest driver
-        let max_strength = drivers.iter()
+        let max_strength = drivers
+            .iter()
             .map(|(_, strength)| *strength)
             .max()
             .unwrap_or(DriveStrength::HighImpedance);
@@ -115,7 +116,8 @@ impl GenericBus {
         }
 
         // Get values from strongest drivers
-        let strong_drivers: Vec<PinValue> = drivers.iter()
+        let strong_drivers: Vec<PinValue> = drivers
+            .iter()
             .filter(|(_, strength)| *strength == max_strength)
             .map(|(value, _)| *value)
             .collect();
@@ -141,7 +143,7 @@ impl GenericBus {
                 pin_guard.set_driver_with_strength(
                     Some(self.base.get_name().to_string()),
                     self.bus_value,
-                    DriveStrength::Standard
+                    DriveStrength::Standard,
                 );
             }
         }
@@ -269,7 +271,7 @@ impl ActiveBus {
                     pin_guard.set_driver_with_strength(
                         Some(self.base.name() + "_pattern"),
                         value,
-                        DriveStrength::Strong
+                        DriveStrength::Strong,
                     );
                 }
             }
@@ -390,33 +392,33 @@ mod tests {
     fn test_active_bus_pattern() {
         let mut bus = ActiveBus::new("ACTIVE_BUS".to_string());
 
- //       let handle = thread::spawn(move || {
- //           bus.run();
- //       });
+        //       let handle = thread::spawn(move || {
+        //           bus.run();
+        //       });
 
         // Give the thread a moment to start
         thread::sleep(Duration::from_millis(10));
 
-//        assert!(bus.is_running());
+        //        assert!(bus.is_running());
 
         let pattern = vec![PinValue::High, PinValue::Low, PinValue::High, PinValue::Low];
 
-//        bus.set_test_pattern(pattern);
-//        bus.set_pattern_interval(Duration::from_millis(10));
+        //        bus.set_test_pattern(pattern);
+        //        bus.set_pattern_interval(Duration::from_millis(10));
 
         // Give the thread a moment to start
         thread::sleep(Duration::from_millis(100));
 
         // Test that active bus can drive patterns
-//        bus.drive_pattern();
-//        assert!(bus.test_pattern.eq(&pattern));
+        //        bus.drive_pattern();
+        //        assert!(bus.test_pattern.eq(&pattern));
 
         // Clean up - stop the bus and join the thread
-//        bus.stop();
+        //        bus.stop();
 
         thread::sleep(Duration::from_millis(100));
-        assert!(! bus.is_running());
+        assert!(!bus.is_running());
 
-//        handle.join().unwrap();
+        //        handle.join().unwrap();
     }
 }

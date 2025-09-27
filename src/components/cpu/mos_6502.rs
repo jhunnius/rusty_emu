@@ -26,15 +26,16 @@ pub struct MOS6502 {
 impl MOS6502 {
     pub fn new(name: String) -> Self {
         let pin_names = vec![
-            "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13", "A14", "A15", // 16 address lines
-            "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", // 8 data lines
-            "RW", // Read/Write
-            "IRQ", // Interrupt Request
-            "NMI", // Non-Maskable Interrupt
-            "RES", // Reset
-            "CLK", // Clock
+            "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13",
+            "A14", "A15", // 16 address lines
+            "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7",   // 8 data lines
+            "RW",   // Read/Write
+            "IRQ",  // Interrupt Request
+            "NMI",  // Non-Maskable Interrupt
+            "RES",  // Reset
+            "CLK",  // Clock
             "SYNC", // Sync
-            "RDY", // Ready
+            "RDY",  // Ready
         ];
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
@@ -46,7 +47,7 @@ impl MOS6502 {
             y_register: 0,
             stack_pointer: 0xFD,
             program_counter: 0xFFFC, // Reset vector location
-            status_register: 0x20, // Always set bit 5
+            status_register: 0x20,   // Always set bit 5
             cycle_count: 0,
             is_reset: false,
             is_running: false,
@@ -73,7 +74,11 @@ impl MOS6502 {
             if let Ok(pin) = self.base.get_pin(&format!("A{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
                     let bit_value = (address >> i) & 1;
-                    let pin_value = if bit_value == 1 { PinValue::High } else { PinValue::Low };
+                    let pin_value = if bit_value == 1 {
+                        PinValue::High
+                    } else {
+                        PinValue::Low
+                    };
                     pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), pin_value);
                 }
             }
@@ -85,7 +90,11 @@ impl MOS6502 {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
                     let bit_value = (data >> i) & 1;
-                    let pin_value = if bit_value == 1 { PinValue::High } else { PinValue::Low };
+                    let pin_value = if bit_value == 1 {
+                        PinValue::High
+                    } else {
+                        PinValue::Low
+                    };
                     pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), pin_value);
                 }
             }
