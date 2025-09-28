@@ -14,59 +14,16 @@ use crate::pin::Pin;
 pub struct IntelMcs4 {
     components: HashMap<String, Arc<Mutex<dyn Component>>>,
     is_running: bool,
-    fibonacci_program: Vec<u8>,  // 4004 assembly program for Fibonacci calculation
 }
 
 impl IntelMcs4 {
     pub fn new() -> Self {
-        let mut system = IntelMcs4 {
+        let system = IntelMcs4 {
             components: HashMap::new(),
             is_running: false,
-            fibonacci_program: Vec::new(),
         };
 
-        system.initialize_fibonacci_program();
-        system.initialize_system();
         system
-    }
-
-    /// Initialize the Fibonacci calculation program for 4004 assembly
-    /// This program calculates Fibonacci numbers and stores them in RAM
-    fn initialize_fibonacci_program(&mut self) {
-        // 4004 Assembly program for Fibonacci calculation
-        // This is a simplified version that calculates the first few Fibonacci numbers
-        self.fibonacci_program = vec![
-            // Program start - Initialize registers
-            0x20, 0x00,  // LDM 0 (Load accumulator with 0) - First Fibonacci number
-            0x10, 0x00,  // LD 0 (Load accumulator from register 0)
-            0x50,        // WRM (Write accumulator to RAM at current pointer)
-            0x21, 0x01,  // LDM 1 (Load accumulator with 1) - Second Fibonacci number
-            0x10, 0x01,  // LD 1 (Load accumulator from register 1)
-            0x50,        // WRM (Write accumulator to RAM)
-
-            // Fibonacci calculation loop
-            0x00, 0x02,  // LD 2 (Load register 2 into accumulator) - Loop counter
-            0x76,        // IAC (Increment accumulator)
-            0x00, 0x02,  // LD 2 (Store back to register 2)
-
-            // Calculate next Fibonacci number: F(n) = F(n-1) + F(n-2)
-            0x00, 0x00,  // LD 0 (Load F(n-2) into accumulator)
-            0x10, 0x01,  // ADD 1 (Add F(n-1) to accumulator)
-            0x50,        // WRM (Store result to RAM)
-
-            // Update registers for next iteration
-            0x00, 0x01,  // LD 1 (Load F(n-1) into accumulator)
-            0x00, 0x00,  // LD 0 (Store F(n-1) to register 0)
-            0x50,        // WRM (Write to RAM - this will be read back as F(n-2))
-
-            // Check if we've calculated enough numbers (8 iterations)
-            0x00, 0x02,  // LD 2 (Load loop counter)
-            0x30, 0x08,  // JCN 8 (Jump if accumulator == 8) - Exit condition
-            0x40, 0x0C,  // JCN 12 (Jump back to loop start)
-
-            // Exit - halt program
-            0x00, 0x00,  // NOP (placeholder for halt)
-        ];
     }
 
     fn initialize_system(&mut self) {
@@ -107,9 +64,6 @@ impl IntelMcs4 {
 
         // Connect data bus between CPU and memory components
         self.connect_data_bus();
-
-        // Load Fibonacci program into ROM
-        self.load_fibonacci_program();
     }
 
     /// Connect clock signals from clock generator to all components
@@ -302,20 +256,11 @@ impl IntelMcs4 {
         }
     }
 
-    /// Load the Fibonacci program into ROM
-    fn load_fibonacci_program(&mut self) {
-        // For now, just log that the program is loaded
-        // In a real implementation, we would need to redesign the interface
-        // to allow loading data into components after creation
-        println!("Loaded {} bytes of Fibonacci program into ROM1", self.fibonacci_program.len());
-    }
-
     pub fn run(&mut self) {
         self.is_running = true;
         let mut handles = vec![];
 
         println!("Starting MCS-4 system components...");
-        println!("Fibonacci program loaded into ROM ({} bytes)", self.fibonacci_program.len());
 
         for (name, component) in &self.components {
             let comp_clone = Arc::clone(component);
@@ -333,9 +278,9 @@ impl IntelMcs4 {
         }
 
         println!("All components started. System running...");
-        println!("CPU will execute Fibonacci calculation program...");
+        println!("CPU will execute loaded program...");
 
-        // Monitor system and display Fibonacci results
+        // Monitor system and display system status
         let mut last_cycle_count = 0;
         let mut display_counter = 0;
 
@@ -344,9 +289,9 @@ impl IntelMcs4 {
 
             // Get current CPU state
             if let Ok(cpu_state) = self.get_cpu_state() {
-                // Display Fibonacci results periodically
+                // Display system status periodically
                 if cpu_state.cycle_count - last_cycle_count > 100 {
-                    self.display_fibonacci_results();
+                    self.display_system_status();
                     last_cycle_count = cpu_state.cycle_count;
                     display_counter += 1;
                 }
@@ -376,15 +321,13 @@ impl IntelMcs4 {
         }
 
         println!("MCS-4 system stopped.");
-        println!("\nFinal Fibonacci results in RAM:");
-        self.display_fibonacci_results();
+        println!("\nFinal system status:");
+        self.display_system_status();
     }
 
-    /// Display the current Fibonacci calculation results from RAM
-    fn display_fibonacci_results(&self) {
-        // For now, just display CPU state since we can't easily access RAM data
-        // In a real implementation, we would need to redesign the interface
-        println!("Fibonacci sequence calculation in progress...");
+    /// Display the current system status
+    fn display_system_status(&self) {
+        println!("System execution in progress...");
 
         if let Ok(cpu_state) = self.get_cpu_state() {
             println!("CPU State - PC: 0x{:03X}, ACC: 0x{:X}, Cycles: {}",
@@ -494,11 +437,6 @@ impl IntelMcs4 {
         ]
     }
 
-    /// Get the Fibonacci program that will be executed
-    pub fn get_fibonacci_program(&self) -> &[u8] {
-        &self.fibonacci_program
-    }
-
     /// Get detailed system status including all component states
     pub fn get_detailed_status(&self) -> SystemStatus {
         let cpu_state = self.get_cpu_state().ok();
@@ -508,7 +446,6 @@ impl IntelMcs4 {
             is_running: self.is_running,
             cpu_state,
             system_info,
-            fibonacci_program_size: self.fibonacci_program.len(),
             components_status: self.get_components_status(),
         }
     }
@@ -567,7 +504,6 @@ pub struct SystemStatus {
     pub is_running: bool,
     pub cpu_state: Option<CpuState>,
     pub system_info: SystemInfo,
-    pub fibonacci_program_size: usize,
     pub components_status: HashMap<String, String>,
 }
 
