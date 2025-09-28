@@ -1,5 +1,4 @@
 use rusty_emu::systems::intel_mcs_4::IntelMcs4;
-use rusty_emu::types::U12;
 use std::thread;
 use std::time::{Duration, Instant};
 
