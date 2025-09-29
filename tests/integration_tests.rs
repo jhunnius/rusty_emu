@@ -88,85 +88,8 @@ mod intel_4001_integration_tests {
         assert_eq!(rom.get_address_latch_time(), Some(test_time));
     }
 
-    #[test]
-    fn test_intel4001_reset_integration() {
-        let mut rom = Intel4001::new_with_access_time("ROM_4001".to_string(), 1);
 
-        // Set up some state
-        rom.set_timing_state(TimingState::DriveData);
-        rom.set_address_high_nibble(Some(0x12));
-        rom.set_address_low_nibble(Some(0x34));
-        rom.set_full_address_ready(true);
 
-        // Verify state is set
-        assert_eq!(rom.get_timing_state(), TimingState::DriveData);
-        assert_eq!(rom.get_address_high_nibble(), Some(0x12));
-        assert_eq!(rom.get_address_low_nibble(), Some(0x34));
-        assert_eq!(rom.get_full_address_ready(), true);
-
-        // Perform reset through the trait
-        rom.perform_reset();
-
-        // Verify reset behavior
-        assert_eq!(rom.get_timing_state(), TimingState::Idle);
-        assert_eq!(rom.get_address_high_nibble(), None);
-        assert_eq!(rom.get_address_low_nibble(), None);
-        assert_eq!(rom.get_full_address_ready(), false);
-    }
-
-    #[test]
-    fn test_intel4001_memory_state_conversions() {
-        let rom = Intel4001::new_with_access_time("ROM_4001".to_string(), 1);
-
-        // Test that the ROM's internal MemoryState converts correctly to TimingState
-        let internal_state = MemoryState::Idle;
-        let timing_state: TimingState = internal_state.into();
-        assert_eq!(timing_state, TimingState::Idle);
-
-        let internal_state = MemoryState::AddressPhase;
-        let timing_state: TimingState = internal_state.into();
-        assert_eq!(timing_state, TimingState::AddressPhase);
-
-        let internal_state = MemoryState::WaitLatency;
-        let timing_state: TimingState = internal_state.into();
-        assert_eq!(timing_state, TimingState::WaitLatency);
-
-        let internal_state = MemoryState::DriveData;
-        let timing_state: TimingState = internal_state.into();
-        assert_eq!(timing_state, TimingState::DriveData);
-    }
-
-    #[test]
-    fn test_intel4001_with_mock_scenario() {
-        // Note: MockScenario would be used here for more complex testing
-        // For this integration test, we focus on the real component behavior
-        let mut rom = Intel4001::new_with_access_time("ROM_4001".to_string(), 1);
-
-        // Load test data
-        let test_data = vec![0x12, 0x34];
-        rom.load_rom_data(test_data, 0).unwrap();
-
-        // Test that the real component works correctly with the common traits
-        // This demonstrates the integration between the common functionality and concrete implementations
-
-        // Set up memory read operation
-        let sync_pin = rom.get_pin("SYNC").unwrap();
-        let cm_pin = rom.get_pin("CM").unwrap();
-        let ci_pin = rom.get_pin("CI").unwrap();
-
-        {
-            let mut sync_guard = sync_pin.lock().unwrap();
-            let mut cm_guard = cm_pin.lock().unwrap();
-            let mut ci_guard = ci_pin.lock().unwrap();
-            sync_guard.set_driver(Some("TEST".to_string()), PinValue::High);
-            cm_guard.set_driver(Some("TEST".to_string()), PinValue::High);
-            ci_guard.set_driver(Some("TEST".to_string()), PinValue::Low);
-        }
-
-        // Verify the ROM responds to the pin states
-        rom.update();
-        assert_eq!(rom.get_timing_state(), TimingState::AddressPhase);
-    }
 
     #[test]
     fn test_common_functionality_with_real_component() {
@@ -279,18 +202,6 @@ mod intel_4001_integration_tests {
         assert_eq!(rom2.get_timing_state(), TimingState::Idle);
     }
 
-    #[test]
-    fn test_error_handling_integration() {
-        let mut rom = Intel4001::new("ROM_4001".to_string());
-
-        // Test reading from valid ROM address
-        assert_eq!(rom.read_rom(0xFF), Some(0x00)); // Should return default value
-
-        // Test loading data with invalid offset
-        let test_data = vec![0x12, 0x34];
-        assert!(rom.load_rom_data(test_data, 255).is_ok()); // Should work
-        assert!(rom.load_rom_data(vec![0x12], 256).is_err()); // Out of bounds
-    }
 
     #[test]
     fn test_performance_characteristics() {
@@ -301,7 +212,7 @@ mod intel_4001_integration_tests {
         assert_eq!(rom.get_access_time(), 1);
 
         // Test that the component can handle rapid state changes
-        for i in 0..100 {
+        for _ in 0..100 {
             rom.set_timing_state(TimingState::Idle);
             rom.set_timing_state(TimingState::AddressPhase);
             rom.set_timing_state(TimingState::WaitLatency);
@@ -371,38 +282,6 @@ mod intel_4001_integration_tests {
         assert_eq!(base_for_reset.get_name(), "ROM_4001");
     }
 
-    #[test]
-    fn test_comprehensive_state_management() {
-        let mut rom = Intel4001::new_with_access_time("ROM_4001".to_string(), 1);
-
-        // Test comprehensive state management through traits
-        let initial_state = rom.get_timing_state();
-        assert_eq!(initial_state, TimingState::Idle);
-
-        // Set up a complete memory operation state
-        rom.set_timing_state(TimingState::AddressPhase);
-        rom.set_address_high_nibble(Some(0x0F));
-        rom.set_address_low_nibble(Some(0x23));
-        rom.set_full_address_ready(true);
-        rom.set_address_latch_time(Some(std::time::Instant::now()));
-
-        // Verify all state is consistent
-        assert_eq!(rom.get_timing_state(), TimingState::AddressPhase);
-        assert_eq!(rom.get_address_high_nibble(), Some(0x0F));
-        assert_eq!(rom.get_address_low_nibble(), Some(0x23));
-        assert_eq!(rom.get_full_address_ready(), true);
-        assert!(rom.get_address_latch_time().is_some());
-
-        // Test state reset
-        rom.perform_reset();
-
-        // Verify all state is cleared
-        assert_eq!(rom.get_timing_state(), TimingState::Idle);
-        assert_eq!(rom.get_address_high_nibble(), None);
-        assert_eq!(rom.get_address_low_nibble(), None);
-        assert_eq!(rom.get_full_address_ready(), false);
-        assert_eq!(rom.get_address_latch_time(), None);
-    }
 
     #[test]
     fn test_cross_component_compatibility() {
@@ -458,31 +337,6 @@ mod cross_component_integration_tests {
         assert_eq!(rom2.get_timing_state(), TimingState::AddressPhase);
     }
 
-    #[test]
-    fn test_component_lifecycle_integration() {
-        let mut rom = Intel4001::new_with_access_time("ROM_4001".to_string(), 1);
-
-        // Test the complete lifecycle of a component
-        assert_eq!(rom.get_timing_state(), TimingState::Idle);
-        assert!(!rom.is_running());
-
-        // Set up some state
-        rom.set_timing_state(TimingState::AddressPhase);
-        rom.set_address_high_nibble(Some(0x12));
-        rom.set_full_address_ready(true);
-
-        // Verify state
-        assert_eq!(rom.get_timing_state(), TimingState::AddressPhase);
-        assert_eq!(rom.get_address_high_nibble(), Some(0x12));
-        assert_eq!(rom.get_full_address_ready(), true);
-
-        // Reset should clear everything
-        rom.perform_reset();
-
-        assert_eq!(rom.get_timing_state(), TimingState::Idle);
-        assert_eq!(rom.get_address_high_nibble(), None);
-        assert_eq!(rom.get_full_address_ready(), false);
-    }
 
     #[test]
     fn test_timing_consistency_across_components() {

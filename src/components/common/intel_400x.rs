@@ -261,7 +261,7 @@ pub trait Intel400xResetHandling {
 
     /// Handle system reset signal
     /// Hardware: RESET pin clears all internal state and tri-states outputs
-    fn handle_reset(&self, reset_pin_name: &str) -> bool {
+    fn handle_reset(&mut self, reset_pin_name: &str) -> bool {
         let reset = if let Ok(pin) = self.get_base().get_pin(reset_pin_name) {
             if let Ok(pin_guard) = pin.lock() {
                 pin_guard.read() == PinValue::High
@@ -280,7 +280,7 @@ pub trait Intel400xResetHandling {
     }
 
     /// Perform the actual reset operations (to be implemented by each chip)
-    fn perform_reset(&self);
+    fn perform_reset(&mut self);
 }
 
 /// Common timing state machine functionality

@@ -1,0 +1,393 @@
+//! # Console Interface Module
+//!
+//! Interactive terminal-based user interface for the Intel MCS-4 emulator.
+//! Provides real-time system monitoring, debugging capabilities, and user controls.
+//!
+//! ## Features
+//! - Real-time RAM and register display
+//! - Interactive command interface
+//! - System state monitoring
+//! - Configurable display options
+//! - Graceful interrupt handling
+
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
+    Frame, Terminal,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::io::{self, Stdout};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use crate::system_config::ConfigurableSystem;
+
+/// Console configuration structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsoleConfig {
+    pub enabled: bool,
+    pub refresh_rate_ms: u64,
+    pub show_ram: bool,
+    pub show_registers: bool,
+    pub show_system_info: bool,
+    pub ram_banks_per_row: usize,
+    pub max_ram_rows: usize,
+}
+
+impl Default for ConsoleConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            refresh_rate_ms: 100,
+            show_ram: true,
+            show_registers: true,
+            show_system_info: true,
+            ram_banks_per_row: 4,
+            max_ram_rows: 5,
+        }
+    }
+}
+
+/// Console UI application state
+pub struct ConsoleApp {
+    system: Arc<Mutex<ConfigurableSystem>>,
+    config: ConsoleConfig,
+    running: bool,
+    last_update: Instant,
+    command_buffer: String,
+    show_help: bool,
+    selected_pane: usize,
+}
+
+impl ConsoleApp {
+    pub fn new(system: Arc<Mutex<ConfigurableSystem>>, config: ConsoleConfig) -> Self {
+        Self {
+            system,
+            config,
+            running: false,
+            last_update: Instant::now(),
+            command_buffer: String::new(),
+            show_help: false,
+            selected_pane: 0,
+        }
+    }
+
+    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // Setup terminal
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        self.running = true;
+
+        // Main event loop
+        while self.running {
+            // Handle input
+            if event::poll(Duration::from_millis(50))? {
+                if let Event::Key(key) = event::read()? {
+                    self.handle_key_event(key.code);
+                }
+            }
+
+            // Update display if needed
+            if self.last_update.elapsed() >= Duration::from_millis(self.config.refresh_rate_ms) {
+                terminal.draw(|f| self.draw_ui(f))?;
+                self.last_update = Instant::now();
+            }
+
+            // Check if system should still be running
+            if let Ok(system) = self.system.lock() {
+                if !system.is_running() && !self.show_help {
+                    // System stopped, show final state
+                    terminal.draw(|f| self.draw_ui(f))?;
+                    thread::sleep(Duration::from_millis(1000));
+                    break;
+                }
+            }
+        }
+
+        // Restore terminal
+        disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        terminal.show_cursor()?;
+
+        Ok(())
+    }
+
+    fn handle_key_event(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.running = false;
+                if let Ok(mut system) = self.system.lock() {
+                    system.stop();
+                }
+            }
+            KeyCode::Char('h') => {
+                self.show_help = !self.show_help;
+            }
+            KeyCode::Char('r') => {
+                if let Ok(mut system) = self.system.lock() {
+                    if system.is_running() {
+                        system.stop();
+                    } else {
+                        system.run();
+                    }
+                }
+            }
+            KeyCode::Char('s') => {
+                if let Ok(mut system) = self.system.lock() {
+                    system.stop();
+                }
+            }
+            KeyCode::Char(' ') => {
+                // Single step (if supported)
+                // This would require adding step functionality to the system
+            }
+            KeyCode::Tab => {
+                self.selected_pane = (self.selected_pane + 1) % 3;
+            }
+            KeyCode::Backspace => {
+                self.command_buffer.pop();
+            }
+            KeyCode::Enter => {
+                self.execute_command();
+                self.command_buffer.clear();
+            }
+            KeyCode::Char(c) => {
+                self.command_buffer.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    fn execute_command(&mut self) {
+        let cmd = self.command_buffer.trim().to_lowercase();
+        match cmd.as_str() {
+            "quit" | "exit" | "q" => {
+                self.running = false;
+                if let Ok(mut system) = self.system.lock() {
+                    system.stop();
+                }
+            }
+            "run" | "r" => {
+                if let Ok(mut system) = self.system.lock() {
+                    system.run();
+                }
+            }
+            "stop" | "s" => {
+                if let Ok(mut system) = self.system.lock() {
+                    system.stop();
+                }
+            }
+            "help" | "h" => {
+                self.show_help = !self.show_help;
+            }
+            "reset" => {
+                if let Ok(mut system) = self.system.lock() {
+                    system.stop();
+                    // Reset would need to be implemented in the system
+                }
+            }
+            _ => {
+                // Unknown command - could show error message
+            }
+        }
+    }
+
+    fn draw_ui(&self, f: &mut Frame) {
+        let size = f.size();
+
+        if self.show_help {
+            self.draw_help_screen(f);
+            return;
+        }
+
+        // Create main layout
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),  // Title bar
+                Constraint::Min(10),    // Main content
+                Constraint::Length(3),  // Command bar
+            ])
+            .split(size);
+
+        // Title bar
+        let title = Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled("Intel MCS-4 Emulator Console", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::raw("Commands: "),
+                Span::styled("q", Style::default().fg(Color::Yellow)),
+                Span::raw("uit, "),
+                Span::styled("r", Style::default().fg(Color::Yellow)),
+                Span::raw("un, "),
+                Span::styled("s", Style::default().fg(Color::Yellow)),
+                Span::raw("top, "),
+                Span::styled("h", Style::default().fg(Color::Yellow)),
+                Span::raw("elp, "),
+                Span::styled("Tab", Style::default().fg(Color::Yellow)),
+                Span::raw(" to switch panes"),
+            ]),
+        ])
+        .block(Block::default().borders(Borders::ALL).title("Status"));
+        f.render_widget(title, chunks[0]);
+
+        // Main content area
+        let content_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // Left pane
+                Constraint::Percentage(50), // Right pane
+            ])
+            .split(chunks[1]);
+
+        // Left pane - System info and registers
+        self.draw_system_info(f, content_chunks[0]);
+
+        // Right pane - RAM contents
+        self.draw_ram_contents(f, content_chunks[1]);
+
+        // Command bar
+        let command_text = if self.command_buffer.is_empty() {
+            "Enter command (type 'h' for help)..."
+        } else {
+            &self.command_buffer
+        };
+
+        let command_bar = Paragraph::new(command_text)
+            .style(Style::default().fg(Color::White))
+            .block(Block::default().borders(Borders::ALL).title("Command"));
+        f.render_widget(command_bar, chunks[2]);
+    }
+
+    fn draw_help_screen(&self, f: &mut Frame) {
+        let size = f.size();
+        let help_text = vec![
+            Line::from(vec![Span::styled("Intel MCS-4 Emulator Console Help", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))]),
+            Line::from(""),
+            Line::from(vec![Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD))]),
+            Line::from(vec![Span::styled("  q, quit, exit", Style::default().fg(Color::Yellow)), Span::raw(" - Exit emulator")]),
+            Line::from(vec![Span::styled("  r, run", Style::default().fg(Color::Yellow)), Span::raw(" - Start/stop system execution")]),
+            Line::from(vec![Span::styled("  s, stop", Style::default().fg(Color::Yellow)), Span::raw(" - Stop system execution")]),
+            Line::from(vec![Span::styled("  h, help", Style::default().fg(Color::Yellow)), Span::raw(" - Show/hide this help")]),
+            Line::from(vec![Span::styled("  reset", Style::default().fg(Color::Yellow)), Span::raw(" - Reset system")]),
+            Line::from(""),
+            Line::from(vec![Span::styled("Navigation:", Style::default().add_modifier(Modifier::BOLD))]),
+            Line::from(vec![Span::styled("  Tab", Style::default().fg(Color::Yellow)), Span::raw(" - Switch between panes")]),
+            Line::from(vec![Span::styled("  Enter", Style::default().fg(Color::Yellow)), Span::raw(" - Execute command")]),
+            Line::from(vec![Span::styled("  Backspace", Style::default().fg(Color::Yellow)), Span::raw(" - Delete character")]),
+            Line::from(""),
+            Line::from(vec![Span::raw("Press any key to return to main view...")]),
+        ];
+
+        let help = Paragraph::new(help_text)
+            .style(Style::default().fg(Color::White))
+            .wrap(Wrap { trim: true })
+            .block(Block::default().borders(Borders::ALL).title("Help"));
+        f.render_widget(help, size);
+    }
+
+    fn draw_system_info(&self, f: &mut Frame, area: Rect) {
+        let info_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(8),  // System info
+                Constraint::Min(5),     // Registers
+            ])
+            .split(area);
+
+        // System information
+        let system_info = if let Ok(system) = self.system.lock() {
+            let info = system.get_system_info();
+            vec![
+                Line::from(vec![Span::raw(format!("System: {}", info.name))]),
+                Line::from(vec![Span::raw(format!("Description: {}", info.description))]),
+                Line::from(vec![Span::raw(format!("Components: {}", info.component_count))]),
+                Line::from(vec![Span::raw(format!("CPU Speed: {} Hz", info.cpu_speed))]),
+                Line::from(vec![Span::raw(format!("ROM Size: {} bytes", info.rom_size))]),
+                Line::from(vec![Span::raw(format!("RAM Size: {} nibbles", info.ram_size))]),
+                Line::from(vec![Span::raw(format!("Running: {}", system.is_running()))]),
+            ]
+        } else {
+            vec![Line::from(vec![Span::raw("System information unavailable")])]
+        };
+
+        let system_widget = Paragraph::new(system_info)
+            .block(Block::default().borders(Borders::ALL).title("System Information"))
+            .wrap(Wrap { trim: true });
+        f.render_widget(system_widget, info_chunks[0]);
+
+        // Registers (placeholder for now - would need CPU trait access)
+        let register_info = vec![
+            Line::from(vec![Span::raw("CPU Registers:")]),
+            Line::from(vec![Span::raw("PC: 0x0000")]),
+            Line::from(vec![Span::raw("ACC: 0x0")]),
+            Line::from(vec![Span::raw("Index: 0x0")]),
+            Line::from(vec![Span::raw("R0-R15: [0x0] * 16")]),
+        ];
+
+        let register_widget = Paragraph::new(register_info)
+            .block(Block::default().borders(Borders::ALL).title("CPU Registers"))
+            .wrap(Wrap { trim: true });
+        f.render_widget(register_widget, info_chunks[1]);
+    }
+
+    fn draw_ram_contents(&self, f: &mut Frame, area: Rect) {
+        let mut ram_info = vec![Line::from(vec![Span::raw("RAM Contents:")])];
+
+        // Try to get actual RAM data from the system
+        if let Ok(_system) = self.system.lock() {
+            // This is a simplified version - in a real implementation,
+            // we would need to access the actual RAM components
+            // For now, show a more informative placeholder
+            ram_info.push(Line::from(vec![Span::raw("Reading RAM contents...")]));
+
+            // Show some sample memory ranges
+            for bank in 0..4 {
+                let mut bank_data = format!("Bank {}: [", bank);
+                for i in 0..20 {
+                    if i > 0 && i % 4 == 0 {
+                        bank_data.push(' ');
+                    }
+                    bank_data.push_str("00");
+                }
+                bank_data.push(']');
+                ram_info.push(Line::from(vec![Span::raw(bank_data)]));
+            }
+        } else {
+            ram_info.push(Line::from(vec![Span::raw("Unable to access RAM data")]));
+        }
+
+        let ram_widget = Paragraph::new(ram_info)
+            .block(Block::default().borders(Borders::ALL).title("RAM Contents"))
+            .wrap(Wrap { trim: true });
+        f.render_widget(ram_widget, area);
+    }
+}
+
+/// Public interface for launching the console
+pub fn run_console(
+    system: Arc<Mutex<ConfigurableSystem>>,
+    config: ConsoleConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut app = ConsoleApp::new(system, config);
+    app.run()
+}

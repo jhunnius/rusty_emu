@@ -40,9 +40,9 @@ mod simple_tests {
         // Test address assembly with different values
         let test_cases = vec![
             (0x00, 0x00, 0x0000),
-            (0x12, 0x34, 0x1234),
-            (0xFF, 0xFF, 0xFFFF),
-            (0x0A, 0x0B, 0x0A0B),
+            (0x02, 0x04, 0x24),
+            (0x0F, 0x0F, 0xFF),
+            (0x0A, 0x0B, 0xAB),
         ];
 
         for (high, low, expected) in test_cases {

@@ -24,10 +24,12 @@
 //! cargo run -- --help
 //! ```
 
-use rusty_emu::system_config::{SystemFactory, ConfigurableSystem};
+use rusty_emu::console::{run_console, ConsoleConfig};
+use rusty_emu::system_config::{ConfigurableSystem, SystemFactory};
 use std::env;
 use std::fs;
 use std::process;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -36,6 +38,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let mut system_type = "basic".to_string();
     let mut program_file = "programs/fibonacci.bin".to_string();
+    let mut use_console = false;
 
     let mut i = 1;
     while i < args.len() {
@@ -60,6 +63,10 @@ fn main() {
                     process::exit(1);
                 }
             }
+            "-c" | "--console" => {
+                use_console = true;
+                i += 1;
+            }
             "-h" | "--help" => {
                 print_usage(&args[0]);
                 return;
@@ -76,6 +83,7 @@ fn main() {
     println!("===================");
     println!("System: {}", system_type);
     println!("Program: {}", program_file);
+    println!("Console: {}", if use_console { "Enabled" } else { "Disabled" });
 
     // Load program data
     let program_data = match load_program_data(&program_file) {
@@ -95,20 +103,33 @@ fn main() {
         }
     };
 
-    // Display system information
-    let info = system.get_system_info();
-    println!("\nSystem Information:");
-    println!("  CPU Speed: {} Hz", info.cpu_speed);
-    println!("  ROM Size: {} bytes", info.rom_size);
-    println!("  RAM Size: {} nibbles", info.ram_size);
-    println!("  Components: {}", info.component_count);
+    if use_console {
+        // Use console interface
+        let system_arc = Arc::new(Mutex::new(system));
+        let console_config = ConsoleConfig::default();
 
-    println!("\nStarting execution...");
-    println!("Press Ctrl+C to stop execution");
-    println!();
+        println!("Starting console interface...");
+        if let Err(e) = run_console(system_arc, console_config) {
+            eprintln!("Console error: {}", e);
+            process::exit(1);
+        }
+    } else {
+        // Use traditional interface
+        // Display system information
+        let info = system.get_system_info();
+        println!("\nSystem Information:");
+        println!("  CPU Speed: {} Hz", info.cpu_speed);
+        println!("  ROM Size: {} bytes", info.rom_size);
+        println!("  RAM Size: {} nibbles", info.ram_size);
+        println!("  Components: {}", info.component_count);
 
-    // Run the system
-    run_system_demo(system);
+        println!("\nStarting execution...");
+        println!("Press Ctrl+C to stop execution");
+        println!();
+
+        // Run the system
+        run_system_demo(system);
+    }
 }
 
 fn print_usage(program_name: &str) {
@@ -118,6 +139,7 @@ fn print_usage(program_name: &str) {
     println!("  -s, --system <SYSTEM>    System type to run (default: basic)");
     println!("                           Available: basic, max, fig1, or JSON config file");
     println!("  -f, --file <FILE>        Program binary file to load (default: fibonacci.bin)");
+    println!("  -c, --console           Enable interactive console interface");
     println!("  -h, --help              Show this help message");
     println!();
     println!("System Types:");
@@ -126,10 +148,15 @@ fn print_usage(program_name: &str) {
     println!("  fig1   - Same as 'max'");
     println!("  *.json - Custom system configuration file");
     println!();
+    println!("Console Interface:");
+    println!("  When enabled with -c/--console, provides an interactive terminal UI");
+    println!("  with real-time system monitoring, RAM/register display, and commands");
+    println!();
     println!("Examples:");
     println!("  {} -s basic -f fibonacci.bin", program_name);
     println!("  {} --system max", program_name);
     println!("  {} --system custom_config.json", program_name);
+    println!("  {} --console --system basic", program_name);
 }
 
 fn load_program_data(filename: &str) -> Result<Vec<u8>, String> {
@@ -201,18 +228,21 @@ fn create_system(system_type: &str, _program_data: &[u8]) -> Result<Configurable
     match system_type {
         "mcs4" | "basic" => {
             // Use the basic MCS-4 configuration
-            factory.create_from_json("configs/mcs4_basic.json")
+            factory
+                .create_from_json("configs/mcs4_basic.json")
                 .map_err(|e| format!("Failed to create basic MCS-4 system: {}", e))
         }
         "mcs4_max" | "max" | "fig1" => {
             // Use the Fig.1 MCS-4 Max configuration
-            factory.create_from_json("configs/mcs4_max.json")
+            factory
+                .create_from_json("configs/mcs4_max.json")
                 .map_err(|e| format!("Failed to create MCS-4 Max system: {}", e))
         }
         _ => {
             // Try to use provided config file directly
             if system_type.ends_with(".json") {
-                factory.create_from_json(system_type)
+                factory
+                    .create_from_json(system_type)
                     .map_err(|e| format!("Failed to create system from '{}': {}", system_type, e))
             } else {
                 Err(format!("Unknown system type: {}. Use 'basic', 'max', or provide a JSON config file path.", system_type))

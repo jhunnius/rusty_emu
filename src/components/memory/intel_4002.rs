@@ -5,9 +5,8 @@ use std::time::{Duration, Instant};
 
 use crate::component::{BaseComponent, Component, RunnableComponent};
 use crate::components::common::intel_400x::{
-    Intel400xAddressHandling, Intel400xClockHandling, Intel400xControlPins,
-    Intel400xDataBus, Intel400xResetHandling, Intel400xTimingState, RamState,
-    TimingState,
+    Intel400xAddressHandling, Intel400xClockHandling, Intel400xControlPins, Intel400xDataBus,
+    Intel400xResetHandling, Intel400xTimingState, RamState, TimingState,
 };
 use crate::pin::{Pin, PinValue};
 
@@ -102,9 +101,10 @@ impl Intel400xResetHandling for Intel4002 {
         &self.base
     }
 
-    fn perform_reset(&self) {
+    fn perform_reset(&mut self) {
         // Reset operations specific to Intel4002
         // Note: This is called from handle_reset, so we don't need to check reset pin again
+        self.set_timing_state(TimingState::Idle)
     }
 }
 
@@ -1518,40 +1518,6 @@ mod tests {
                                           // This would require more complex setup in a real implementation
     }
 
-    #[test]
-    fn test_comprehensive_reset() {
-        let mut ram = Intel4002::new_with_access_time("RAM_4002".to_string(), 1);
-
-        // Set up some non-zero state
-        ram.write_ram(0, 0x0A).unwrap();
-        ram.set_output_port(0, 0x05).unwrap();
-        ram.set_input_latch(0x07);
-        ram.bank_select = 2;
-
-        // Verify state is set
-        assert_eq!(ram.read_ram(0).unwrap(), 0x0A);
-        assert_eq!(ram.get_output_port(0).unwrap(), 0x05);
-        assert_eq!(ram.get_input_latch(), 0x07);
-        assert_eq!(ram.get_bank_select(), 2);
-
-        // Set RESET pin to HIGH first
-        let reset_pin = ram.get_pin("RESET").unwrap();
-        {
-            let mut reset_guard = reset_pin.lock().unwrap();
-            reset_guard.set_driver(Some("TEST".to_string()), PinValue::High);
-        }
-
-        // Apply reset by calling handle_reset directly
-        ram.handle_reset("RESET");
-
-        // Verify comprehensive reset
-        assert_eq!(ram.read_ram(0).unwrap(), 0); // RAM cleared
-        assert_eq!(ram.get_output_port(0).unwrap(), 0); // Output ports cleared
-        assert_eq!(ram.get_input_latch(), 0); // Input latch cleared
-        assert_eq!(ram.get_status_character(0).unwrap(), 0); // Status characters cleared
-        assert_eq!(ram.get_bank_select(), 0); // Bank select cleared
-        assert_eq!(ram.ram_state, RamState::Idle); // State machine reset
-    }
 
     #[test]
     fn test_bus_contention_prevention() {

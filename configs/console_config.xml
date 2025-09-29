@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<console_config>
+    <interface>
+        <enabled>true</enabled>
+        <refresh_rate_ms>100</refresh_rate_ms>
+        <show_system_info>true</show_system_info>
+        <show_registers>true</show_registers>
+        <show_ram>true</show_ram>
+        <ram_banks_per_row>4</ram_banks_per_row>
+        <max_ram_rows>5</max_ram_rows>
+    </interface>
+
+    <display>
+        <colors>
+            <title_bar>cyan</title_bar>
+            <command_bar>white</command_bar>
+            <system_info>white</system_info>
+            <ram_contents>white</ram_contents>
+            <help_text>white</help_text>
+        </colors>
+
+        <layout>
+            <title_height>3</title_height>
+            <command_height>3</command_height>
+            <left_pane_width>50</left_pane_width>
+        </layout>
+    </display>
+
+    <commands>
+        <exit_commands>quit,exit,q</exit_commands>
+        <run_commands>run,r</run_commands>
+        <stop_commands>stop,s</stop_commands>
+        <help_commands>help,h</help_commands>
+        <reset_command>reset</reset_command>
+    </commands>
+
+    <key_bindings>
+        <quit>q,Esc</quit>
+        <help>h</help>
+        <run>r</run>
+        <stop>s</stop>
+        <step>space</step>
+        <next_pane>Tab</next_pane>
+    </key_bindings>
+</console_config>

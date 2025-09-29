@@ -17,7 +17,7 @@
 //!
 //! // Create system from JSON configuration
 //! let factory = SystemFactory::new();
-//! let mut system = factory.create_from_json("configs/mcs4_basic.json")?;
+//! let mut system = factory.create_from_json("configs/mcs4_basic.json").expect("Could not create JSON test!");
 //!
 //! // Run the configured system
 //! system.run();
@@ -48,9 +48,9 @@
 //! }
 //! ```
 
+use crate::component::Component;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::component::Component;
 use std::sync::{Arc, Mutex};
 
 /// JSON-based system configuration structures
@@ -109,8 +109,12 @@ pub struct LayoutConfig {
 }
 
 /// System factory for creating systems from JSON configuration
+#[derive(Debug)]
 pub struct SystemFactory {
-    component_registry: HashMap<String, fn(config: &ComponentConfig, name: String) -> Result<Box<dyn Component>, String>>,
+    component_registry: HashMap<
+        String,
+        fn(config: &ComponentConfig, name: String) -> Result<Box<dyn Component>, String>,
+    >,
 }
 
 impl SystemFactory {
@@ -128,39 +132,49 @@ impl SystemFactory {
             "intel_4004".to_string(),
             |config: &ComponentConfig, name: String| {
                 if let ComponentConfig::Single(single) = config {
-                    let clock_speed = single.properties.get("clock_speed")
+                    let clock_speed = single
+                        .properties
+                        .get("clock_speed")
                         .and_then(|v| v.as_f64())
                         .unwrap_or(750000.0);
-                    Ok(Box::new(crate::components::cpu::intel_4004::Intel4004::new(name, clock_speed)))
+                    Ok(Box::new(
+                        crate::components::cpu::intel_4004::Intel4004::new(name, clock_speed),
+                    ))
                 } else {
                     Err("Intel 4004 must be single component".to_string())
                 }
-            }
+            },
         );
 
         self.component_registry.insert(
             "generic_clock".to_string(),
             |config: &ComponentConfig, name: String| {
                 if let ComponentConfig::Single(single) = config {
-                    let frequency = single.properties.get("frequency")
+                    let frequency = single
+                        .properties
+                        .get("frequency")
                         .and_then(|v| v.as_f64())
                         .unwrap_or(750000.0);
-                    Ok(Box::new(crate::components::clock::generic_clock::GenericClock::new(name, frequency)))
+                    Ok(Box::new(
+                        crate::components::clock::generic_clock::GenericClock::new(name, frequency),
+                    ))
                 } else {
                     Err("Generic clock must be single component".to_string())
                 }
-            }
+            },
         );
 
         self.component_registry.insert(
             "intel_4001".to_string(),
             |config: &ComponentConfig, name: String| {
                 if let ComponentConfig::Single(_single) = config {
-                    Ok(Box::new(crate::components::memory::intel_4001::Intel4001::new(name)))
+                    Ok(Box::new(
+                        crate::components::memory::intel_4001::Intel4001::new(name),
+                    ))
                 } else {
                     Err("Intel 4001 must be single component".to_string())
                 }
-            }
+            },
         );
 
         self.component_registry.insert(
@@ -192,11 +206,13 @@ impl SystemFactory {
             "intel_4003".to_string(),
             |config: &ComponentConfig, name: String| {
                 if let ComponentConfig::Single(_single) = config {
-                    Ok(Box::new(crate::components::memory::intel_4003::Intel4003::new(name)))
+                    Ok(Box::new(
+                        crate::components::memory::intel_4003::Intel4003::new(name),
+                    ))
                 } else {
                     Err("Intel 4003 must be single component".to_string())
                 }
-            }
+            },
         );
     }
 
@@ -215,14 +231,18 @@ impl SystemFactory {
             .map_err(|e| format!("Failed to parse JSON config '{}': {}", path, e))
     }
 
-    fn create_components(&self, config: &SystemConfig) -> Result<HashMap<String, Arc<Mutex<Box<dyn Component>>>>, String> {
+    fn create_components(
+        &self,
+        config: &SystemConfig,
+    ) -> Result<HashMap<String, Arc<Mutex<Box<dyn Component>>>>, String> {
         let mut components = HashMap::new();
 
         for (id, component_config) in &config.components {
             let component_names = self.expand_component_names(id, component_config);
 
             for component_name in component_names {
-                let component = self.create_single_component(component_config, component_name.clone())?;
+                let component =
+                    self.create_single_component(component_config, component_name.clone())?;
                 components.insert(component_name, Arc::new(Mutex::new(component)));
             }
         }
@@ -244,7 +264,11 @@ impl SystemFactory {
         }
     }
 
-    fn create_single_component(&self, config: &ComponentConfig, name: String) -> Result<Box<dyn Component>, String> {
+    fn create_single_component(
+        &self,
+        config: &ComponentConfig,
+        name: String,
+    ) -> Result<Box<dyn Component>, String> {
         match config {
             ComponentConfig::Single(single) => {
                 if let Some(creator) = self.component_registry.get(&single.component_type) {
@@ -263,28 +287,41 @@ impl SystemFactory {
         }
     }
 
-    fn connect_components(&self, config: &SystemConfig, components: &mut HashMap<String, Arc<Mutex<Box<dyn Component>>>>) -> Result<(), String> {
+    fn connect_components(
+        &self,
+        config: &SystemConfig,
+        components: &mut HashMap<String, Arc<Mutex<Box<dyn Component>>>>,
+    ) -> Result<(), String> {
         for (connection_id, connection_config) in &config.connections {
             println!("Connecting: {}", connection_id);
 
             // Get source pin
-            let source_component = components.get(&connection_config.source.component)
-                .ok_or_else(|| format!("Source component not found: {}", connection_config.source.component))?;
+            let source_component = components
+                .get(&connection_config.source.component)
+                .ok_or_else(|| {
+                    format!(
+                        "Source component not found: {}",
+                        connection_config.source.component
+                    )
+                })?;
 
             let source_pin = {
                 let component = source_component.lock().unwrap();
-                component.get_pin(&connection_config.source.pin)
+                component
+                    .get_pin(&connection_config.source.pin)
                     .map_err(|e| format!("Failed to get source pin: {}", e))?
             };
 
             // Connect to all targets
             for target_ref in &connection_config.targets {
-                let target_component = components.get(&target_ref.component)
-                    .ok_or_else(|| format!("Target component not found: {}", target_ref.component))?;
+                let target_component = components.get(&target_ref.component).ok_or_else(|| {
+                    format!("Target component not found: {}", target_ref.component)
+                })?;
 
                 let target_pin = {
                     let component = target_component.lock().unwrap();
-                    component.get_pin(&target_ref.pin)
+                    component
+                        .get_pin(&target_ref.pin)
                         .map_err(|e| format!("Failed to get target pin: {}", e))?
                 };
 
@@ -307,7 +344,10 @@ pub struct ConfigurableSystem {
 }
 
 impl ConfigurableSystem {
-    pub fn new(config: SystemConfig, components: HashMap<String, Arc<Mutex<Box<dyn Component>>>>) -> Self {
+    pub fn new(
+        config: SystemConfig,
+        components: HashMap<String, Arc<Mutex<Box<dyn Component>>>>,
+    ) -> Self {
         ConfigurableSystem {
             config,
             components,
@@ -338,7 +378,10 @@ impl ConfigurableSystem {
         }
 
         println!("All components started. System running...");
-        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        // Monitor system state during execution
+        self.monitor_system_state();
+
         self.is_running = false;
 
         // Stop all components
@@ -361,6 +404,63 @@ impl ConfigurableSystem {
         println!("Configurable system stopped.");
     }
 
+    /// Monitor and display system state during execution
+    fn monitor_system_state(&self) {
+        println!("\n=== System State Monitor ===");
+
+        // Monitor for a reasonable duration
+        for i in 0..15 {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+
+            println!("\n--- Cycle {} ---", i + 1);
+            self.display_current_state();
+        }
+
+        println!("\n=== End of Monitoring ===");
+    }
+
+    /// Display current system state including RAM and output ports
+    fn display_current_state(&self) {
+        // Display CPU state if available
+        if let Some(ram_component) = self.components.get("RAM_4002") {
+            if let Ok(ram) = ram_component.lock() {
+                // Try to get RAM-specific methods
+                println!("RAM Contents (Fibonacci Sequence):");
+
+                // Display first 10 RAM locations where Fibonacci numbers should be
+                for addr in 0..10 {
+                    let value = if let Ok(pin) = ram.get_pin(&format!("D{}", addr % 4)) {
+                        if let Ok(_pin_guard) = pin.lock() {
+                            // This is a simplified approach - in reality we'd need to
+                            // implement proper RAM reading through the component interface
+                            format!("RAM[0x{:02X}]", addr)
+                        } else {
+                            "Locked".to_string()
+                        }
+                    } else {
+                        format!("No Pin D{}", addr % 4)
+                    };
+                    println!("  {}", value);
+                }
+
+                // Display output ports
+                println!("Output Ports:");
+                for port in 0..4 {
+                    let port_value = "Port_0".to_string(); // Simplified
+                    println!("  Port {}: {}", port, port_value);
+                }
+            }
+        }
+
+        // Display component status
+        println!("Component Status:");
+        for (name, component) in &self.components {
+            if let Ok(comp) = component.lock() {
+                println!("  {}: Running={}", name, comp.is_running());
+            }
+        }
+    }
+
     pub fn stop(&mut self) {
         self.is_running = false;
     }
@@ -370,10 +470,16 @@ impl ConfigurableSystem {
     }
 
     pub fn get_system_info(&self) -> SystemInfo {
-        let rom_size = self.config.metadata.get("rom_size")
+        let rom_size = self
+            .config
+            .metadata
+            .get("rom_size")
             .and_then(|v| v.as_u64())
             .unwrap_or(256) as usize;
-        let ram_size = self.config.metadata.get("ram_size")
+        let ram_size = self
+            .config
+            .metadata
+            .get("ram_size")
             .and_then(|v| v.as_u64())
             .unwrap_or(40) as usize;
 
@@ -381,7 +487,10 @@ impl ConfigurableSystem {
             name: self.config.name.clone(),
             description: self.config.description.clone(),
             component_count: self.components.len(),
-            cpu_speed: self.config.metadata.get("cpu_speed")
+            cpu_speed: self
+                .config
+                .metadata
+                .get("cpu_speed")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(750000.0),
             rom_size,

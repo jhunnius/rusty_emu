@@ -392,32 +392,15 @@ mod tests {
     fn test_active_bus_pattern() {
         let mut bus = ActiveBus::new("ACTIVE_BUS".to_string());
 
-        //       let handle = thread::spawn(move || {
-        //           bus.run();
-        //       });
-
         // Give the thread a moment to start
         thread::sleep(Duration::from_millis(10));
 
-        //        assert!(bus.is_running());
-
         let pattern = vec![PinValue::High, PinValue::Low, PinValue::High, PinValue::Low];
         bus.set_test_pattern(pattern);
-        //        bus.set_pattern_interval(Duration::from_millis(10));
 
         // Give the thread a moment to start
         thread::sleep(Duration::from_millis(100));
 
-        // Test that active bus can drive patterns
-        //        bus.drive_pattern();
-        //        assert!(bus.test_pattern.eq(&pattern));
-
-        // Clean up - stop the bus and join the thread
-        //        bus.stop();
-
-        thread::sleep(Duration::from_millis(100));
         assert!(!bus.is_running());
-
-        //        handle.join().unwrap();
     }
 }

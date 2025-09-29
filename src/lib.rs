@@ -13,6 +13,7 @@ mod bus;
 pub mod component;
 pub mod components;
 pub mod connection;
+pub mod console;
 pub mod pin;
 pub mod system_config;
 pub mod types;

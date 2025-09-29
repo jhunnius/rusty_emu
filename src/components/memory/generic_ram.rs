@@ -80,20 +80,6 @@ impl GenericRam {
         Ok(())
     }
 
-    pub fn load_from_binary(&mut self, data: &[u8], offset: usize) -> Result<(), String> {
-        if offset + data.len() > self.memory.len() {
-            return Err(format!(
-                "Data exceeds RAM capacity: offset {} + data length {} > RAM size {}",
-                offset,
-                data.len(),
-                self.memory.len()
-            ));
-        }
-
-        self.memory[offset..offset + data.len()].copy_from_slice(data);
-        Ok(())
-    }
-
     pub fn get_memory_size(&self) -> usize {
         self.memory.len()
     }
