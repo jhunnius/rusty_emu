@@ -9,7 +9,7 @@ fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
     let mut system_type = "basic".to_string();
-    let mut program_file = "fibonacci.bin".to_string();
+    let mut program_file = "programs/fibonacci.bin".to_string();
 
     let mut i = 1;
     while i < args.len() {
@@ -119,7 +119,7 @@ fn load_program_data(filename: &str) -> Result<Vec<u8>, String> {
         }
         Err(e) => {
             // If file doesn't exist, try to use default program
-            if filename == "fibonacci.bin" {
+            if filename == "programs/fibonacci.bin" {
                 println!(
                     "DEBUG: File {} not found ({}), using default fibonacci program",
                     filename, e
