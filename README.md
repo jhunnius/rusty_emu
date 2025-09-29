@@ -1,16 +1,17 @@
 # Rusty Emulator
 
-A comprehensive Intel 4004/4001 microprocessor simulator written in Rust, featuring cycle-accurate emulation and
-extensive testing capabilities.
+A comprehensive Intel MCS-4 microprocessor simulator written in Rust, featuring JSON-configurable system architecture,
+cycle-accurate emulation, and extensive testing capabilities.
 
 ## Overview
 
 Rusty Emulator is a detailed simulation of Intel's first microprocessor system, the MCS-4 (Micro Computer System). It
 provides:
 
+- **JSON-Configurable Architecture**: Flexible system definition via JSON configuration files
 - **Hardware-Accurate Simulation**: Cycle-accurate timing where possible
 - **Comprehensive Testing**: Extensive test suite with multiple testing strategies
-- **Extensible Architecture**: Easy addition of new components and systems
+- **Extensible Design**: Easy addition of new components and system configurations
 - **Educational Value**: Clear implementation of microprocessor fundamentals
 
 ## Architecture
@@ -58,24 +59,31 @@ Intel 4003 Shift Register (10-bit serial I/O)
 rusty_emu/
 ├── src/                    # Source code
 │   ├── lib.rs             # Library exports
-│   ├── main.rs            # Binary entry point
+│   ├── main.rs            # Binary entry point with JSON configuration
 │   ├── component.rs       # Core component traits
 │   ├── pin.rs            # Pin and signal system
+│   ├── system_config.rs   # JSON-based system configuration system
 │   ├── components/        # Hardware components
 │   │   ├── common/       # Shared Intel 400x functionality
 │   │   ├── cpu/          # CPU implementations
 │   │   ├── memory/       # Memory components
 │   │   └── clock/       # Clock generation
-│   └── systems/          # Complete system integrations
-├── tests/                # Comprehensive test suite
-│   ├── README.md        # Test documentation
-│   ├── lib.rs          # Test library
-│   ├── mocks.rs       # Mock implementations
+│   └── systems/          # System integration (legacy)
+├── configs/               # JSON system configuration files
+│   ├── mcs4_basic.json   # Basic MCS-4 system configuration
+│   └── mcs4_max.json     # Fig.1 MCS-4 Max system configuration
+├── programs/             # Binary program files
+│   ├── README.md        # Program documentation
+│   └── fibonacci.bin    # Example Fibonacci program
+├── tests/               # Comprehensive test suite
+│   ├── README.md       # Test documentation
+│   ├── lib.rs         # Test library
+│   ├── mocks.rs      # Mock implementations
 │   ├── intel_400x_tests.rs    # Common functionality tests
 │   ├── mock_based_tests.rs    # Mock-based tests
 │   ├── property_based_tests.rs # Property verification
 │   └── integration_tests.rs   # System integration tests
-└── docs/                # Documentation
+└── docs/               # Documentation
 ```
 
 ## Quick Start
@@ -111,20 +119,30 @@ rom.load_rom_data(program, 0) ?;
 rom.update(); // Process one clock cycle
 ```
 
-### System Simulation
+### JSON Configuration System
 
 ```rust
-use rusty_emu::systems::intel_mcs_4::IntelMCS4;
+use rusty_emu::system_config::SystemFactory;
 
-// Create complete MCS-4 system
-let mut system = IntelMCS4::new();
-
-// Load program
-let program = vec![0x12, 0x34, 0x56, 0x78];
-system.load_program(0, & program) ?;
+// Create system from JSON configuration
+let factory = SystemFactory::new();
+let mut system = factory.create_from_json("configs/mcs4_basic.json") ?;
 
 // Run simulation
 system.run();
+```
+
+### Command Line Usage
+
+```bash
+# Run basic MCS-4 system
+cargo run -- --system basic
+
+# Run Fig.1 MCS-4 Max system
+cargo run -- --system max
+
+# Run with custom program
+cargo run -- --system basic --file programs/myprogram.bin
 ```
 
 ## Testing
@@ -179,54 +197,70 @@ The test suite demonstrates:
 
 ## Key Technical Achievements
 
-### 1. Testability Demonstration
+### 1. JSON-Configurable System Architecture
+
+**Revolutionary Design Approach:**
+
+- ✅ **Configuration-Driven Systems**: Complete MCS-4 systems defined via JSON files
+- ✅ **Factory Pattern Implementation**: Dynamic system creation from configuration
+- ✅ **Component Registry**: Extensible component creation system
+- ✅ **Pin-Level Connection Management**: Automatic wiring of component interconnections
+- ✅ **Runtime System Selection**: Support for multiple system configurations
+
+### 2. Testability Demonstration
 
 **Answer to Original Question: CONFIRMED**
 
-- ✅ **Yes, it is absolutely possible to write meaningful test cases for the generic intel_400x file**
+- ✅ **Yes, it is absolutely possible to write meaningful test cases for complex systems**
 - ✅ **Pure functions**: Address assembly, clock logic, state queries are easily testable
 - ✅ **Mockable architecture**: Trait-based design enables comprehensive mocking
 - ✅ **Deterministic behavior**: State machines have predictable outcomes
 - ✅ **Integration testing**: Real components work correctly with common traits
 
-### 2. Comprehensive Test Suite
+### 3. Comprehensive Test Suite
 
-- **416 lines** of comprehensive test code
+- **416+ lines** of comprehensive test code
 - **Multiple testing strategies**: Unit, mock-based, property-based, integration
 - **High test coverage**: Core functionality, edge cases, error conditions
 - **Working examples**: Demonstrates practical usage patterns
+- **System-level testing**: End-to-end verification of complete systems
 
-### 3. Clean Architecture
+### 4. Clean Architecture
 
 - **Trait-based design**: Enables code reuse and testing
 - **Separation of concerns**: Clear boundaries between components
-- **Extensible structure**: Easy addition of new components
+- **Extensible structure**: Easy addition of new components and configurations
 - **Documentation**: Comprehensive documentation at all levels
+- **Professional organization**: Clean separation of configs, programs, source, and tests
 
 ## Development Status
 
 ### ✅ Completed
 
-- Core component architecture
-- Intel 4001 ROM implementation
-- Intel 4004 CPU structure
-- Common functionality module
-- Comprehensive test suite
+- Core component architecture with trait-based design
+- Intel 4001 ROM implementation with I/O ports
+- Intel 4004 CPU structure and instruction framework
+- Intel 4002 RAM implementation with refresh circuitry
+- Intel 4003 Shift Register implementation
+- JSON-based system configuration architecture
+- Comprehensive test suite (416+ lines of tests)
 - Documentation system
+- Binary program organization and management
+- Hard-coded system elimination
 
 ### 🚧 In Progress
 
-- Complete Intel 4004 instruction execution
-- Intel 4002 RAM implementation
-- System integration and testing
-- Performance optimization
+- Complete Intel 4004 instruction execution engine
+- System integration and timing verification
+- Performance optimization and benchmarking
 
 ### 📋 Planned
 
 - Additional CPU architectures (6502, 65C02)
-- Enhanced I/O device support
+- Enhanced I/O device support and peripherals
 - Development tools integration
-- Performance benchmarking
+- Advanced debugging and tracing features
+- Performance analysis and optimization tools
 
 ## Educational Value
 

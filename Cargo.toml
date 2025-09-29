@@ -2,6 +2,11 @@
 name = "rusty_emu"
 version = "0.1.0"
 edition = "2021"
+description = "A comprehensive Intel MCS-4 microprocessor simulator with JSON-configurable architecture"
+documentation = "https://docs.rs/rusty_emu"
+readme = "README.md"
+keywords = ["emulator", "intel", "mcs4", "4004", "microprocessor"]
+categories = ["emulation", "hardware-support", "simulation"]
 
 [dependencies]
 tempfile = "3.3.0"

@@ -1,3 +1,53 @@
+//! # JSON Configuration System
+//!
+//! This module provides a flexible, JSON-based system for configuring and creating MCS-4 systems.
+//!
+//! ## Key Features
+//!
+//! - **JSON System Definition**: Complete system configurations stored in JSON files
+//! - **Component Factory**: Dynamic creation of components from configuration
+//! - **Automatic Wiring**: Pin-level connection management between components
+//! - **Extensible Design**: Easy addition of new component types and connection patterns
+//! - **Runtime Configuration**: Support for multiple system configurations
+//!
+//! ## Usage
+//!
+//! ```rust
+//! use rusty_emu::system_config::SystemFactory;
+//!
+//! // Create system from JSON configuration
+//! let factory = SystemFactory::new();
+//! let mut system = factory.create_from_json("configs/mcs4_basic.json")?;
+//!
+//! // Run the configured system
+//! system.run();
+//! ```
+//!
+//! ## Configuration File Format
+//!
+//! ```json
+//! {
+//!   "name": "MySystem",
+//!   "description": "Custom MCS-4 system",
+//!   "components": {
+//!     "CPU": {
+//!       "single": {
+//!         "component_type": "intel_4004",
+//!         "name": "CPU_4004",
+//!         "properties": {"clock_speed": 750000}
+//!       }
+//!     }
+//!   },
+//!   "connections": {
+//!     "clock_signals": {
+//!       "connection_type": "clock",
+//!       "source": {"component": "CLOCK", "pin": "CLK"},
+//!       "targets": [{"component": "CPU", "pin": "PHI1"}]
+//!     }
+//!   }
+//! }
+//! ```
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::component::Component;

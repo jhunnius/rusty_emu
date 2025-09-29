@@ -1,3 +1,29 @@
+//! # Rusty Emulator - Main Binary
+//!
+//! Command-line interface for the Intel MCS-4 microprocessor simulator.
+//!
+//! This binary provides:
+//! - JSON-based system configuration loading
+//! - Binary program file loading and execution
+//! - Real-time system monitoring and status display
+//! - Multiple system type support (basic, max, fig1, custom JSON)
+//!
+//! ## Usage
+//!
+//! ```bash
+//! # Run basic MCS-4 system with default fibonacci program
+//! cargo run -- --system basic
+//!
+//! # Run Fig.1 MCS-4 Max system
+//! cargo run -- --system max
+//!
+//! # Run with custom program
+//! cargo run -- --system basic --file programs/myprogram.bin
+//!
+//! # Show help
+//! cargo run -- --help
+//! ```
+
 use rusty_emu::system_config::{SystemFactory, ConfigurableSystem};
 use std::env;
 use std::fs;
