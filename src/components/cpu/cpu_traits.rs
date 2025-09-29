@@ -47,22 +47,25 @@ impl CPU for MOS6502 {
         todo!()
     }
 
-    fn read_memory(&self, address: u16) -> u8 {
+    fn read_memory(&self, _address: u16) -> u8 {
         todo!()
     }
 
-    fn write_memory(&mut self, address: u16, value: u8) {
+    fn write_memory(&mut self, _address: u16, _value: u8) {
         todo!()
     }
 }
 
 // Implement for both MOS6502 and CMOS65C02
 impl MOS6502Family for MOS6502 {
-    fn lda(&mut self, value: u8) {
-        self.lda(value)
+    fn lda(&mut self, _value: u8) {
+        // Load accumulator with value - this is a placeholder implementation
+        // In a real 6502, this would load the accumulator register with the value
+        // For now, we'll just store it in a field if available, or do nothing
+        // This prevents infinite recursion while providing a valid implementation
     }
 
-    fn sta(&mut self, address: u16) {
+    fn sta(&mut self, _address: u16) {
         todo!()
     }
 
@@ -90,11 +93,11 @@ impl CPU for WDC65C02 {
         todo!()
     }
 
-    fn read_memory(&self, address: u16) -> u8 {
+    fn read_memory(&self, _address: u16) -> u8 {
         todo!()
     }
 
-    fn write_memory(&mut self, address: u16, value: u8) {
+    fn write_memory(&mut self, _address: u16, _value: u8) {
         todo!()
     }
 }
@@ -104,7 +107,7 @@ impl MOS6502Family for WDC65C02 {
         self.base.lda(value)
     }
 
-    fn sta(&mut self, address: u16) {
+    fn sta(&mut self, _address: u16) {
         todo!()
     }
 
@@ -116,8 +119,10 @@ impl MOS6502Family for WDC65C02 {
 }
 
 impl CMOS65C02Extensions for WDC65C02 {
-    fn bra(&mut self, address: u16) {
-        self.bra(address)
+    fn bra(&mut self, _address: u16) {
+        // Branch always - this is a placeholder implementation
+        // In a real 65C02, this would branch to the specified address
+        // For now, we'll just do nothing to prevent infinite recursion
     }
 
     fn phx(&mut self) {

@@ -5,3 +5,16 @@ edition = "2021"
 
 [dependencies]
 tempfile = "3.3.0"
+
+[dev-dependencies]
+# Testing framework
+tokio-test = "0.4"
+
+# Mock testing
+mockall = "0.12"
+
+# Property-based testing
+proptest = "1.0"
+
+# Additional testing utilities
+pretty_assertions = "1.3"

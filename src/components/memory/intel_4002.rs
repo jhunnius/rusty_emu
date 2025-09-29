@@ -5,6 +5,11 @@ use std::time::{Duration, Instant};
 
 use crate::component::{BaseComponent, Component, RunnableComponent};
 use crate::pin::{Pin, PinValue};
+use crate::components::common::intel_400x::{
+    Intel400xClockHandling, Intel400xDataBus, Intel400xAddressHandling,
+    Intel400xControlPins, Intel400xResetHandling, Intel400xTimingState,
+    TimingState, MemoryState, RamState, utils
+};
 
 /// Intel 4002 - 320-bit RAM (80 nibbles × 4 bits) with integrated output ports
 /// Part of the MCS-4 family, designed to work with Intel 4004 CPU
@@ -23,6 +28,7 @@ use crate::pin::{Pin, PinValue};
 /// - Bank selection and status character handling follows Intel MCS-4 architecture
 pub struct Intel4002 {
     base: BaseComponent,
+    variant: RamVariant,           // RAM variant (4002-1 or 4002-2)
     memory: [u8; 80],              // 80 nibbles of RAM (320 bits total) - 4 banks × 20 nibbles
     last_address: u8,              // Last accessed memory address
     access_time: Duration,         // RAM access latency (500ns typical)
@@ -47,16 +53,14 @@ pub struct Intel4002 {
     current_instruction: u8,       // Current instruction being processed
 }
 
-/// RAM operation state machine states
-/// Tracks the current phase of RAM access operations
+
+/// Intel 4002 RAM variants
+/// - 4002-1: Standard RAM variant
+/// - 4002-2: RAM variant with different configuration
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum RamState {
-    Idle,         // No RAM operation in progress
-    AddressPhase, // Currently latching address nibbles
-    WaitLatency,  // Address latched, waiting for access time
-    ReadData,     // Reading data from RAM
-    WriteData,    // Writing data to RAM
-    OutputPort,   // Output port operation
+pub enum RamVariant {
+    Type1,  // 4002-1
+    Type2,  // 4002-2
 }
 
 /// Intel 4002 timing constants (based on datasheet specifications)
@@ -70,18 +74,106 @@ impl TimingConstants {
     const RAM_ACCESS: Duration = Duration::from_nanos(500);     // RAM access time
 }
 
+impl Intel400xClockHandling for Intel4002 {
+    fn get_base(&self) -> &BaseComponent {
+        &self.base
+    }
+}
+
+impl Intel400xDataBus for Intel4002 {
+    fn get_base(&self) -> &BaseComponent {
+        &self.base
+    }
+}
+
+impl Intel400xAddressHandling for Intel4002 {
+    fn get_base(&self) -> &BaseComponent {
+        &self.base
+    }
+}
+
+impl Intel400xControlPins for Intel4002 {
+    fn get_base(&self) -> &BaseComponent {
+        &self.base
+    }
+}
+
+impl Intel400xResetHandling for Intel4002 {
+    fn get_base(&self) -> &BaseComponent {
+        &self.base
+    }
+
+    fn perform_reset(&self) {
+        // Reset operations specific to Intel4002
+        // Note: This is called from handle_reset, so we don't need to check reset pin again
+    }
+}
+
+impl Intel400xTimingState for Intel4002 {
+    fn get_timing_state(&self) -> TimingState {
+        self.ram_state.into()
+    }
+
+    fn set_timing_state(&mut self, state: TimingState) {
+        self.ram_state = state.into();
+    }
+
+    fn get_address_latch_time(&self) -> Option<Instant> {
+        self.address_latch_time
+    }
+
+    fn set_address_latch_time(&mut self, time: Option<Instant>) {
+        self.address_latch_time = time;
+    }
+
+    fn get_full_address_ready(&self) -> bool {
+        self.full_address_ready
+    }
+
+    fn set_full_address_ready(&mut self, ready: bool) {
+        self.full_address_ready = ready;
+    }
+
+    fn get_address_high_nibble(&self) -> Option<u8> {
+        self.address_high_nibble
+    }
+
+    fn set_address_high_nibble(&mut self, nibble: Option<u8>) {
+        self.address_high_nibble = nibble;
+    }
+
+    fn get_address_low_nibble(&self) -> Option<u8> {
+        self.address_low_nibble
+    }
+
+    fn set_address_low_nibble(&mut self, nibble: Option<u8>) {
+        self.address_low_nibble = nibble;
+    }
+
+    fn get_access_time(&self) -> Duration {
+        self.access_time
+    }
+}
+
 impl Intel4002 {
     /// Create a new Intel 4002 RAM with specified access time
     /// Parameters: name - Component identifier, access_time_ns - Memory access time in nanoseconds
     /// Returns: New Intel4002 instance with configurable access timing
     pub fn new(name: String) -> Self {
-        Self::new_with_access_time(name, 500) // Default 500ns access time
+        Self::new_with_variant_and_access_time(name, RamVariant::Type1, 500) // Default 500ns access time
     }
 
-    /// Create a new Intel 4002 RAM with custom access time (for testing)
+        /// Create a new Intel 4002 RAM with custom access time (for testing)
     /// Parameters: name - Component identifier, access_time_ns - Memory access time in nanoseconds
     /// Returns: New Intel4002 instance with configurable access timing
     pub fn new_with_access_time(name: String, access_time_ns: u64) -> Self {
+        Self::new_with_variant_and_access_time(name, RamVariant::Type1, access_time_ns)
+    }
+
+    /// Create a new Intel 4002 RAM with specified variant and access time
+    /// Parameters: name - Component identifier, variant - RAM variant (Type1 or Type2), access_time_ns - Memory access time in nanoseconds
+    /// Returns: New Intel4002 instance with configurable variant and access timing
+    pub fn new_with_variant_and_access_time(name: String, variant: RamVariant, access_time_ns: u64) -> Self {
         // Intel 4002 pinout (based on MCS-4 architecture):
         // - 4 data pins (D0-D3) for multiplexed address/data
         // - 4 output port pins (O0-O3)
@@ -106,8 +198,9 @@ impl Intel4002 {
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
 
-        Intel4002 {
+                Intel4002 {
             base: BaseComponent::new(name, pins),
+            variant,
             memory: [0u8; 80],  // 80 nibbles = 4 banks × 20 nibbles each
             last_address: 0,
             access_time: Duration::from_nanos(access_time_ns),
@@ -341,21 +434,20 @@ impl Intel4002 {
     /// Handle system reset signal
     /// Hardware: RESET pin clears all internal state and tri-states outputs
     fn handle_reset(&mut self) {
-        let (_, _, _, reset) = self.read_control_pins();
-        if reset {
-            // Hardware reset - clear all registers
+        if Intel400xResetHandling::handle_reset(self, "RESET") {
+            // Hardware reset - clear all registers specific to Intel4002
             self.memory = [0u8; 80];  // Clear 80 nibbles
             self.output_ports = [0u8; 4];
             self.input_latch = 0;
             self.status_characters = [0u8; 4];  // Clear 4 status character latches
             self.bank_select = 0;
 
-            // Reset all state machines
-            self.ram_state = RamState::Idle;
-            self.address_latch_time = None;
-            self.address_high_nibble = None;
-            self.address_low_nibble = None;
-            self.full_address_ready = false;
+            // Reset all state machines using common functionality
+            self.set_timing_state(TimingState::Idle);
+            self.set_address_latch_time(None);
+            self.set_address_high_nibble(None);
+            self.set_address_low_nibble(None);
+            self.set_full_address_ready(false);
             self.data_latch = None;
             self.instruction_phase = false;
             self.current_instruction = 0;
@@ -470,7 +562,7 @@ impl Intel4002 {
         self.handle_reset();
 
         // Check for RAM operation start on Φ1 rising edge with SYNC high
-        let (sync, cm, p0, _) = self.read_control_pins();
+        let (sync, _cm, p0, _) = self.read_control_pins();
         if sync && p0 {
             // Start RAM address phase on Φ1 rising edge
             self.start_ram_address_phase();
@@ -620,7 +712,7 @@ impl Intel4002 {
     /// Transition to data operation state
     fn start_data_operation(&mut self) {
         // Determine operation type based on control signals and address
-        let (sync, cm, p0, _) = self.read_control_pins();
+        let (sync, _cm, p0, _) = self.read_control_pins();
 
         if sync && p0 && self.full_address_ready {
             let address = self.last_address;
@@ -712,7 +804,7 @@ impl Intel4002 {
 
     /// Check if RAM should drive the bus
     fn should_drive_bus(&self) -> bool {
-        let (sync, cm, p0, _) = self.read_control_pins();
+        let (sync, _cm, p0, _) = self.read_control_pins();
 
         // Only drive bus during data phase when selected
         sync && p0 && self.ram_state == RamState::ReadData
@@ -741,7 +833,7 @@ impl Intel4002 {
 
     /// Handle instruction cycle synchronization
     fn handle_instruction_cycle(&mut self) {
-        let (sync, cm, p0, _) = self.read_control_pins();
+        let (sync, _cm, p0, _) = self.read_control_pins();
 
         if sync && self.is_phi1_rising_edge() {
             // Start of new instruction cycle
@@ -969,6 +1061,12 @@ impl Intel4002 {
     /// Returns: 2-bit bank select value (0-3)
     pub fn get_bank_select(&self) -> u8 {
         self.bank_select
+    }
+
+    /// Get the RAM variant
+    /// Returns: The RAM variant (Type1 or Type2)
+    pub fn get_variant(&self) -> RamVariant {
+        self.variant
     }
 
     /// Clear all RAM to zero
@@ -1430,7 +1528,7 @@ mod tests {
         }
 
         // Apply reset by calling handle_reset directly
-        ram.handle_reset();
+        ram.handle_reset("RESET");
 
         // Verify comprehensive reset
         assert_eq!(ram.read_ram(0).unwrap(), 0); // RAM cleared
