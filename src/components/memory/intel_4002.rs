@@ -61,17 +61,6 @@ pub enum RamVariant {
     Type2, // 4002-2
 }
 
-/// Intel 4002 timing constants (based on datasheet specifications)
-/// These represent the actual hardware timing requirements
-struct TimingConstants;
-
-impl TimingConstants {
-    const ADDRESS_SETUP: Duration = Duration::from_nanos(100); // T_ADDRESS_SETUP
-    const DATA_VALID: Duration = Duration::from_nanos(200); // T_DATA_VALID
-    const OUTPUT_DISABLE: Duration = Duration::from_nanos(150); // T_OUTPUT_DISABLE
-    const RAM_ACCESS: Duration = Duration::from_nanos(500); // RAM access time
-}
-
 impl Intel400xClockHandling for Intel4002 {
     fn get_base(&self) -> &BaseComponent {
         &self.base
@@ -364,27 +353,6 @@ impl Intel4002 {
         (phi1, phi2)
     }
 
-    fn is_phi1_falling_edge(&self) -> bool {
-        let (phi1, _) = self.read_clock_pins();
-        phi1 == PinValue::Low && self.prev_phi1 == PinValue::High
-    }
-
-    fn is_phi2_rising_edge(&self) -> bool {
-        let (_, phi2) = self.read_clock_pins();
-        phi2 == PinValue::High && self.prev_phi2 == PinValue::Low
-    }
-
-    fn is_phi2_falling_edge(&self) -> bool {
-        let (_, phi2) = self.read_clock_pins();
-        phi2 == PinValue::Low && self.prev_phi2 == PinValue::High
-    }
-
-    fn update_clock_states(&mut self) {
-        let (phi1, phi2) = self.read_clock_pins();
-        self.prev_phi1 = phi1;
-        self.prev_phi2 = phi2;
-    }
-
     /// Read all control pins from CPU
     /// Returns: (sync, cm, p0, reset)
     /// Hardware: Control pins determine operation type and chip state
@@ -472,69 +440,6 @@ impl Intel4002 {
             // Clear nibble storage for next address
             self.address_high_nibble = None;
             self.address_low_nibble = None;
-        }
-    }
-
-    /// Decode RAM address based on Intel 4002 addressing scheme
-    /// Hardware: Complex addressing with 4 register banks, status characters, and output ports
-    /// Parameters: address_low - Low nibble from CPU, instruction - Instruction/opcode
-    /// Returns: (bank_number, effective_address)
-    fn decode_address(&self, address_low: u8, instruction: u8) -> (u8, u8) {
-        // The 4002 uses the high nibble of the address for bank selection
-        // and the low nibble for within-bank addressing
-        // Each bank has 20 nibbles (0-19), not 16
-        let bank = (address_low >> 4) & 0x03; // 2-bit bank from high nibble
-        let ram_address = (bank * 20) + (address_low & 0x0F); // 20 nibbles per bank
-
-        // Status characters are separate latches, not part of RAM
-        if self.is_status_character_instruction(instruction) {
-            // Status characters are separate from RAM - return special address
-            return (bank, 0xFF); // Special marker for status character access
-        }
-
-        // Output ports are also separate from RAM (addresses 0x14-0x17)
-        if address_low >= 0x14 && address_low <= 0x17 {
-            return (bank, 0xFF); // Special marker for output port access
-        }
-
-        (bank, ram_address)
-    }
-
-    /// Check if instruction is related to status character operations
-    fn is_status_character_instruction(&self, instruction: u8) -> bool {
-        matches!(instruction, 0x10..=0x13)
-    }
-
-    /// Check if instruction is a RAM-related instruction
-    fn is_ram_instruction(&self, instruction: u8) -> bool {
-        matches!(instruction, 0x00..=0x0F | 0x10..=0x17)
-    }
-
-    /// Handle RAM bank selection instructions
-    /// Hardware: DCL (Designate Command Line) instructions select RAM banks
-    fn handle_bank_selection(&mut self, instruction: u8) {
-        match instruction {
-            // Bank select instructions (DCL)
-            0xE0..=0xE3 => {
-                self.bank_select = instruction & 0x03;
-            }
-            _ => {}
-        }
-    }
-
-    /// Handle status character operations
-    /// Hardware: Status characters are separate 4-bit latches, not part of RAM
-    fn handle_status_character(&mut self, instruction: u8) {
-        match instruction {
-            // Status character load instructions
-            0xF0..=0xF3 => {
-                let sc_index = (instruction & 0x03) as usize;
-                if sc_index < 4 {
-                    // Load status character from input latch into separate latch
-                    self.status_characters[sc_index] = self.input_latch;
-                }
-            }
-            _ => {}
         }
     }
 
@@ -689,27 +594,6 @@ impl Intel4002 {
         }
     }
 
-    /// Update timing state with more precise hardware timing
-    fn update_timing_state(&mut self) {
-        match self.ram_state {
-            RamState::AddressPhase => {
-                if let Some(latch_time) = self.address_latch_time {
-                    if latch_time.elapsed() >= TimingConstants::ADDRESS_SETUP {
-                        self.start_data_operation();
-                    }
-                }
-            }
-            RamState::ReadData => {
-                if let Some(latch_time) = self.address_latch_time {
-                    if latch_time.elapsed() >= TimingConstants::DATA_VALID {
-                        // Data should be valid now
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
     /// Transition to data operation state
     fn start_data_operation(&mut self) {
         // Determine operation type based on control signals and address
@@ -801,57 +685,6 @@ impl Intel4002 {
         self.data_latch = None;
         self.instruction_phase = false;
         self.current_instruction = 0;
-    }
-
-    /// Check if RAM should drive the bus
-    fn should_drive_bus(&self) -> bool {
-        let (sync, _cm, p0, _) = self.read_control_pins();
-
-        // Only drive bus during data phase when selected
-        sync && p0 && self.ram_state == RamState::ReadData
-    }
-
-    /// Update data bus drivers with proper contention prevention
-    fn update_data_bus_drivers(&self) {
-        if self.should_drive_bus() {
-            // Drive bus with RAM data
-            let data = self.read_ram_data();
-            self.write_data_bus(data);
-        } else {
-            // High impedance when not selected
-            self.tri_state_data_bus();
-        }
-    }
-
-    /// Read RAM data at current address
-    fn read_ram_data(&self) -> u8 {
-        if self.full_address_ready && (self.last_address as usize) < self.memory.len() {
-            self.memory[self.last_address as usize]
-        } else {
-            0
-        }
-    }
-
-    /// Handle instruction cycle synchronization
-    fn handle_instruction_cycle(&mut self) {
-        let (sync, _cm, _p0, _) = self.read_control_pins();
-
-        if sync && self.is_phi1_rising_edge(self.prev_phi1) {
-            // Start of new instruction cycle
-            self.instruction_phase = true;
-            self.current_instruction = self.read_data_bus();
-
-            // Decode instruction to determine if it's for RAM
-            if self.is_ram_instruction(self.current_instruction) {
-                self.prepare_ram_operation();
-            }
-        }
-    }
-
-    /// Prepare for RAM operation based on instruction
-    fn prepare_ram_operation(&mut self) {
-        // This would set up the RAM for the upcoming operation
-        // based on the decoded instruction
     }
 
     /// Handle special RAM instructions (bank select, status characters, etc.)
@@ -1359,40 +1192,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bank_selection() {
-        let mut ram = Intel4002::new("RAM_4002".to_string());
-
-        // Test bank selection instructions
-        ram.handle_bank_selection(0xE0);
-        assert_eq!(ram.get_bank_select(), 0);
-
-        ram.handle_bank_selection(0xE1);
-        assert_eq!(ram.get_bank_select(), 1);
-
-        ram.handle_bank_selection(0xE2);
-        assert_eq!(ram.get_bank_select(), 2);
-
-        ram.handle_bank_selection(0xE3);
-        assert_eq!(ram.get_bank_select(), 3);
-    }
-
-    #[test]
-    fn test_status_character_operations() {
-        let mut ram = Intel4002::new("RAM_4002".to_string());
-
-        // Set input latch
-        ram.set_input_latch(0x0A);
-
-        // Test status character load
-        ram.handle_status_character(0xF0);
-        assert_eq!(ram.get_status_character(0).unwrap(), 0x0A); // Status character 0
-
-        ram.set_input_latch(0x0B);
-        ram.handle_status_character(0xF1);
-        assert_eq!(ram.get_status_character(1).unwrap(), 0x0B); // Status character 1
-    }
-
-    #[test]
     fn test_output_port_operations() {
         let mut ram = Intel4002::new("RAM_4002".to_string());
 
@@ -1419,31 +1218,6 @@ mod tests {
 
         // For now, just verify the latch is set correctly
         assert_eq!(ram.get_input_latch(), 0x07);
-    }
-
-    #[test]
-    fn test_ram_addressing_scheme() {
-        let ram = Intel4002::new("RAM_4002".to_string());
-
-        // Test address decoding for different instruction types
-        // For instruction 0x05 with address_low 0x00: should be bank 0, address 0
-        let (bank, address) = ram.decode_address(0x00, 0x05);
-        assert_eq!(bank, 0);
-        assert_eq!(address, 0); // Bank 0, address 0 (instruction 0x05 addresses location 0)
-
-        // Test with different address_low value
-        let (bank, address) = ram.decode_address(0x05, 0x00);
-        assert_eq!(bank, 0);
-        assert_eq!(address, 5); // Bank 0, address 5
-
-        // Test status character addressing (returns 0xFF marker)
-        let (_bank, address) = ram.decode_address(0x00, 0x10);
-        assert_eq!(address, 0xFF); // Status character marker
-
-        // Test output port addressing (returns 0xFF marker)
-        // For output port 0x14, we need to pass 0x14 as address_low
-        let (_bank, address) = ram.decode_address(0x14, 0x00);
-        assert_eq!(address, 0xFF); // Output port marker
     }
 
     #[test]
@@ -1516,34 +1290,5 @@ mod tests {
         ram.setup_instruction_test(0x25); // SRC with specific address
                                           // Verify output port addressing is set up correctly
                                           // This would require more complex setup in a real implementation
-    }
-
-
-    #[test]
-    fn test_bus_contention_prevention() {
-        let mut ram = Intel4002::new_with_access_time("RAM_4002".to_string(), 1);
-
-        // Initially should not drive bus
-        assert!(!ram.should_drive_bus());
-
-        // Set up RAM operation
-        let sync_pin = ram.get_pin("SYNC").unwrap();
-        let p0_pin = ram.get_pin("P0").unwrap();
-        {
-            let mut sync_guard = sync_pin.lock().unwrap();
-            let mut p0_guard = p0_pin.lock().unwrap();
-            sync_guard.set_driver(Some("TEST".to_string()), PinValue::High);
-            p0_guard.set_driver(Some("TEST".to_string()), PinValue::High);
-        }
-
-        // Start memory operation
-        ram.update();
-
-        // Should still not drive bus until data phase
-        assert!(!ram.should_drive_bus());
-
-        // Test that bus drivers are updated correctly
-        ram.update_data_bus_drivers();
-        // In a real test, we would verify the pin states
     }
 }

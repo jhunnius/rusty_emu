@@ -1,5 +1,4 @@
 // CPU components module
-mod cpu_traits;
 pub mod intel_4004;
 pub mod mos_6502;
 pub mod wdc_65c02;

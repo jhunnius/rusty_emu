@@ -12,7 +12,6 @@ pub struct GenericClock {
     duty_cycle: f64, // Duty cycle as percentage (0.0 to 1.0)
     current_state: PinValue,
     last_transition: Instant,
-    half_period: Duration,
     high_time: Duration,
     low_time: Duration,
     enabled: bool,
@@ -23,17 +22,14 @@ impl GenericClock {
         let pin_names = vec!["CLK", "ENABLE"];
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
 
-        let half_period = Self::frequency_to_duration(frequency) / 2;
-
         let mut clock = GenericClock {
             base: BaseComponent::new(name, pins),
             frequency,
             duty_cycle: 0.5, // 50% duty cycle by default
             current_state: PinValue::Low,
             last_transition: Instant::now(),
-            half_period,
-            high_time: half_period, // Will be recalculated in set_duty_cycle
-            low_time: half_period,  // Will be recalculated in set_duty_cycle
+            high_time: Duration::from_secs_f64(0.5 / frequency), // Will be recalculated in set_duty_cycle
+            low_time: Duration::from_secs_f64(0.5 / frequency), // Will be recalculated in set_duty_cycle
             enabled: true,
         };
 
@@ -41,28 +37,9 @@ impl GenericClock {
         clock
     }
 
-    pub fn with_duty_cycle(mut self, duty_cycle: f64) -> Self {
-        self.set_duty_cycle(duty_cycle);
-        self
-    }
-
-    pub fn set_frequency(&mut self, frequency: f64) {
-        self.frequency = frequency;
-        self.half_period = Self::frequency_to_duration(frequency) / 2;
-        self.update_timing();
-    }
-
-    pub fn get_frequency(&self) -> f64 {
-        self.frequency
-    }
-
     pub fn set_duty_cycle(&mut self, duty_cycle: f64) {
         self.duty_cycle = duty_cycle.clamp(0.1, 0.9); // Keep within reasonable bounds
         self.update_timing();
-    }
-
-    pub fn get_duty_cycle(&self) -> f64 {
-        self.duty_cycle
     }
 
     pub fn enable(&mut self) {
@@ -75,16 +52,6 @@ impl GenericClock {
     pub fn disable(&mut self) {
         self.enabled = false;
         // Set output to Low when disabled
-        self.set_clock_output(PinValue::Low);
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
-    pub fn reset(&mut self) {
-        self.current_state = PinValue::Low;
-        self.last_transition = Instant::now();
         self.set_clock_output(PinValue::Low);
     }
 
@@ -207,48 +174,7 @@ impl Component for GenericClock {
 }
 
 // Advanced clock features
-impl GenericClock {
-    pub fn generate_single_pulse(&mut self, width: Duration) {
-        self.disable(); // Stop regular clock
-        self.set_clock_output(PinValue::High);
-
-        // Spawn a thread to end the pulse after specified width
-        let clock_name = self.base.get_name().to_string();
-        let clock_pin = self.base.get_pin("CLK").unwrap().clone();
-
-        thread::spawn(move || {
-            thread::sleep(width);
-            if let Ok(mut pin_guard) = clock_pin.lock() {
-                pin_guard.set_driver(Some(clock_name), PinValue::Low);
-            }
-        });
-    }
-
-    pub fn generate_clock_burst(&mut self, count: usize) {
-        self.disable(); // Stop regular clock
-
-        let clock_name = self.base.get_name().to_string();
-        let clock_pin = self.base.get_pin("CLK").unwrap().clone();
-        let half_period = self.half_period;
-
-        thread::spawn(move || {
-            for i in 0..count * 2 {
-                // Each cycle has two transitions
-                let state = if i % 2 == 0 {
-                    PinValue::High
-                } else {
-                    PinValue::Low
-                };
-
-                if let Ok(mut pin_guard) = clock_pin.lock() {
-                    pin_guard.set_driver(Some(clock_name.clone()), state);
-                }
-
-                thread::sleep(half_period);
-            }
-        });
-    }
-}
+impl GenericClock {}
 
 #[cfg(test)]
 mod tests {
@@ -259,42 +185,7 @@ mod tests {
     fn test_clock_creation() {
         let clock = GenericClock::new("TEST_CLK".to_string(), 1_000_000.0); // 1MHz
         assert_eq!(clock.name(), "TEST_CLK");
-        assert_eq!(clock.get_frequency(), 1_000_000.0);
-        assert_eq!(clock.get_duty_cycle(), 0.5);
         assert!(!clock.is_running());
-    }
-
-    #[test]
-    fn test_clock_frequency_change() {
-        let mut clock = GenericClock::new("TEST_CLK".to_string(), 1_000_000.0);
-        clock.set_frequency(2_000_000.0);
-        assert_eq!(clock.get_frequency(), 2_000_000.0);
-    }
-
-    #[test]
-    fn test_clock_duty_cycle() {
-        let mut clock = GenericClock::new("TEST_CLK".to_string(), 1_000_000.0);
-        clock.set_duty_cycle(0.25);
-        assert_eq!(clock.get_duty_cycle(), 0.25);
-
-        // Test clamping
-        clock.set_duty_cycle(1.5);
-        assert_eq!(clock.get_duty_cycle(), 0.9);
-
-        clock.set_duty_cycle(-0.5);
-        assert_eq!(clock.get_duty_cycle(), 0.1);
-    }
-
-    #[test]
-    fn test_clock_enable_disable() {
-        let mut clock = GenericClock::new("TEST_CLK".to_string(), 1_000_000.0);
-
-        assert!(clock.is_enabled());
-        clock.disable();
-        assert!(!clock.is_enabled());
-
-        clock.enable();
-        assert!(clock.is_enabled());
     }
 
     #[test]
@@ -305,19 +196,5 @@ mod tests {
 
         let high_freq = GenericClock::frequency_to_duration(1_000_000.0); // 1MHz
         assert_eq!(high_freq, Duration::from_micros(1));
-    }
-
-    #[test]
-    fn test_single_pulse() {
-        let mut clock = GenericClock::new("PULSE_CLK".to_string(), 1_000_000.0);
-        clock.generate_single_pulse(Duration::from_millis(10));
-        // Note: In a real test, you'd want to verify the pin state
-    }
-
-    #[test]
-    fn test_clock_burst() {
-        let mut clock = GenericClock::new("BURST_CLK".to_string(), 1_000_000.0);
-        clock.generate_clock_burst(5); // 5 clock cycles
-                                       // Note: In a real test, you'd want to verify the pin states
     }
 }

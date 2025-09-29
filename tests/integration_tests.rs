@@ -7,7 +7,6 @@
 use rusty_emu::component::Component;
 use rusty_emu::components::common::intel_400x::*;
 use rusty_emu::components::memory::intel_4001::Intel4001;
-use rusty_emu::pin::PinValue;
 use std::time::Duration;
 
 #[cfg(test)]
@@ -87,9 +86,6 @@ mod intel_4001_integration_tests {
         rom.set_address_latch_time(Some(test_time));
         assert_eq!(rom.get_address_latch_time(), Some(test_time));
     }
-
-
-
 
     #[test]
     fn test_common_functionality_with_real_component() {
@@ -202,7 +198,6 @@ mod intel_4001_integration_tests {
         assert_eq!(rom2.get_timing_state(), TimingState::Idle);
     }
 
-
     #[test]
     fn test_performance_characteristics() {
         // Test that the common functionality maintains expected performance characteristics
@@ -282,7 +277,6 @@ mod intel_4001_integration_tests {
         assert_eq!(base_for_reset.get_name(), "ROM_4001");
     }
 
-
     #[test]
     fn test_cross_component_compatibility() {
         // Test that components using the same traits are compatible
@@ -336,7 +330,6 @@ mod cross_component_integration_tests {
         assert_eq!(rom1.get_timing_state(), TimingState::AddressPhase);
         assert_eq!(rom2.get_timing_state(), TimingState::AddressPhase);
     }
-
 
     #[test]
     fn test_timing_consistency_across_components() {

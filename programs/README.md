@@ -19,6 +19,14 @@ This directory contains binary program files for the Intel MCS-4 emulator.
 - **Output:** Each Fibonacci number visible on output ports 0-7 during execution
 - **Features:** Real-time visibility of calculation progress
 
+### io_demo.bin ✨ **NEW**
+- **Size:** 32 bytes (16 instructions × 2 bytes each)
+- **Description:** I/O port demonstration program for Intel 4001
+- **Algorithm:** Writes values to I/O ports 0-3 and reads them back
+- **Instructions Used:** LDM, SRC, WRM, RDM, JCN
+- **Output:** Demonstrates I/O port functionality with visible port states
+- **Features:** Shows I/O port read/write operations and latching behavior
+
 ## Usage
 
 Programs are automatically loaded by the emulator. Use the `--file` option to specify a different program:
@@ -29,6 +37,17 @@ cargo run -- --system basic
 
 # Use enhanced fibonacci program with output ports ✨
 cargo run -- --system basic --file programs/fibonacci_output.bin
+
+### io_demo.bin ✨ **NEW**
+- **Size:** Assembly source (needs compilation to binary)
+- **Description:** I/O port demonstration program for Intel 4001
+- **Algorithm:** Writes values 1-4 to I/O ports 0-3 and reads them back
+- **Instructions Used:** LDM, SRC, WRM, RDM, JCN
+- **Output:** Demonstrates I/O port functionality with visible port states
+- **Features:** Shows I/O port read/write operations and latching behavior
+
+# Use I/O demonstration program ✨
+cargo run -- --system mcs4_io_demo --file programs/io_demo.bin
 
 # Use specific program
 cargo run -- --system basic --file programs/myprogram.bin

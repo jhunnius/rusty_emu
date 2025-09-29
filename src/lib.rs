@@ -9,7 +9,6 @@
 //! - Extensible component system with trait-based architecture
 //! - Professional project organization with clean separation of concerns
 
-mod bus;
 pub mod component;
 pub mod components;
 pub mod connection;

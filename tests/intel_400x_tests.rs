@@ -1,47 +1,16 @@
 use rusty_emu::component::{BaseComponent, Component};
 use rusty_emu::components::common::intel_400x::*;
-use rusty_emu::pin::PinValue;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 // Mock component for testing trait implementations
 #[derive(Debug)]
-struct MockComponent {
-    pins: HashMap<String, Arc<Mutex<TestPin>>>,
-}
-
-#[derive(Debug)]
-struct TestPin {
-    value: PinValue,
-    driver: Option<(String, PinValue)>,
-}
-
-type Pin = TestPin;
-
-impl Pin {
-    fn set_driver(&mut self, driver: Option<String>, value: PinValue) {
-        self.driver = driver.map(|name| (name, value));
-        self.value = value;
-    }
-}
+struct MockComponent {}
 
 impl MockComponent {
     fn new() -> Self {
-        Self {
-            pins: HashMap::new(),
-        }
-    }
-
-    fn add_pin(&mut self, name: &str, pin: Arc<Mutex<Pin>>) {
-        self.pins.insert(name.to_string(), pin);
-    }
-
-    fn get_pin(&self, name: &str) -> Result<Arc<Mutex<TestPin>>, String> {
-        self.pins
-            .get(name)
-            .cloned()
-            .ok_or_else(|| format!("Pin {} not found", name))
+        Self {}
     }
 }
 
@@ -101,15 +70,11 @@ mod tests {
     #[test]
     fn test_assemble_full_address() {
         // Create a mock trait implementation for testing
-        struct TestAddressHandler {
-            base: MockComponent,
-        }
+        struct TestAddressHandler {}
 
         impl TestAddressHandler {
             fn new() -> Self {
-                Self {
-                    base: MockComponent::new(),
-                }
+                Self {}
             }
         }
 
@@ -268,15 +233,11 @@ mod tests {
         let access_time = Duration::from_nanos(100);
 
         // Mock address handler for testing the algorithm
-        struct TestAddressHandler {
-            base: MockComponent,
-        }
+        struct TestAddressHandler {}
 
         impl TestAddressHandler {
             fn new() -> Self {
-                Self {
-                    base: MockComponent::new(),
-                }
+                Self {}
             }
         }
 

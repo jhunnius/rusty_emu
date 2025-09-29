@@ -24,9 +24,13 @@ mod json_system_tests {
         // Test loading basic system configuration
         let result = factory.create_from_json("configs/mcs4_basic.json");
 
-        assert!(result.is_ok(), "Failed to create basic system: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to create basic system: {:?}",
+            result.err()
+        );
 
-        let mut system = result.unwrap();
+        let system = result.unwrap();
         let info = system.get_system_info();
 
         // Verify system properties
@@ -34,7 +38,6 @@ mod json_system_tests {
         assert_eq!(info.component_count, 5); // CPU, Clock, 2 ROMs, 1 RAM
         assert_eq!(info.cpu_speed, 750000.0);
     }
-
 
     #[test]
     fn test_system_component_access() {
@@ -77,7 +80,10 @@ mod json_system_tests {
 
         // Verify metadata is loaded correctly
         assert_eq!(info.name, "IntelMcs4");
-        assert_eq!(info.description, "Basic MCS-4 System with CPU, Clock, 2 ROMs, and 1 RAM");
+        assert_eq!(
+            info.description,
+            "Basic MCS-4 System with CPU, Clock, 2 ROMs, and 1 RAM"
+        );
         assert_eq!(info.component_count, 5);
         assert_eq!(info.cpu_speed, 750000.0);
         assert_eq!(info.rom_size, 256);
@@ -105,7 +111,6 @@ mod system_execution_tests {
         let info = system.get_system_info();
         assert_eq!(info.name, "IntelMcs4");
     }
-
 }
 
 #[cfg(test)]
@@ -137,12 +142,8 @@ mod fibonacci_program_tests {
     #[test]
     fn test_program_file_sizes() {
         // Test that program files have reasonable sizes
-        let fibonacci_size = fs::metadata("programs/fibonacci.bin")
-            .unwrap()
-            .len();
-        let fibonacci_output_size = fs::metadata("programs/fibonacci_output.bin")
-            .unwrap()
-            .len();
+        let fibonacci_size = fs::metadata("programs/fibonacci.bin").unwrap().len();
+        let fibonacci_output_size = fs::metadata("programs/fibonacci_output.bin").unwrap().len();
 
         // Both should be non-zero and reasonable sizes
         assert!(fibonacci_size > 0);
@@ -155,7 +156,6 @@ mod fibonacci_program_tests {
 #[cfg(test)]
 mod configuration_validation_tests {
     use super::*;
-
 
     #[test]
     fn test_component_naming_consistency() {

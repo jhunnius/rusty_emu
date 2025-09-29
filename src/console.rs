@@ -11,7 +11,7 @@
 //! - Graceful interrupt handling
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -20,12 +20,11 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame, Terminal,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::io::{self, Stdout};
+use std::io;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -63,7 +62,6 @@ pub struct ConsoleApp {
     system: Arc<Mutex<ConfigurableSystem>>,
     config: ConsoleConfig,
     running: bool,
-    last_update: Instant,
     command_buffer: String,
     show_help: bool,
     selected_pane: usize,
@@ -75,7 +73,6 @@ impl ConsoleApp {
             system,
             config,
             running: false,
-            last_update: Instant::now(),
             command_buffer: String::new(),
             show_help: false,
             selected_pane: 0,
@@ -86,7 +83,8 @@ impl ConsoleApp {
         // Setup terminal
         enable_raw_mode().map_err(|e| format!("Failed to enable raw mode: {}", e))?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).map_err(|e| format!("Failed to enter alternate screen: {}", e))?;
+        execute!(stdout, EnterAlternateScreen)
+            .map_err(|e| format!("Failed to enter alternate screen: {}", e))?;
 
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
@@ -132,11 +130,11 @@ impl ConsoleApp {
 
         // Restore terminal
         disable_raw_mode().map_err(|e| format!("Failed to disable raw mode: {}", e))?;
-        execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen
-        ).map_err(|e| format!("Failed to leave alternate screen: {}", e))?;
-        terminal.show_cursor().map_err(|e| format!("Failed to show cursor: {}", e))?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)
+            .map_err(|e| format!("Failed to leave alternate screen: {}", e))?;
+        terminal
+            .show_cursor()
+            .map_err(|e| format!("Failed to show cursor: {}", e))?;
 
         Ok(())
     }
@@ -238,17 +236,20 @@ impl ConsoleApp {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(4),  // Title bar
-                Constraint::Min(8),     // Main content
-                Constraint::Length(3),  // Command bar
+                Constraint::Length(4), // Title bar
+                Constraint::Min(8),    // Main content
+                Constraint::Length(3), // Command bar
             ])
             .split(size);
 
         // Title bar
         let title_text = vec![
-            Line::from(vec![
-                Span::styled("Intel MCS-4 Emulator Console", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-            ]),
+            Line::from(vec![Span::styled(
+                "Intel MCS-4 Emulator Console",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )]),
             Line::from(vec![
                 Span::raw("Commands: "),
                 Span::styled("q/Q", Style::default().fg(Color::Yellow)),
@@ -298,19 +299,54 @@ impl ConsoleApp {
     fn draw_help_screen(&self, f: &mut Frame) {
         let size = f.size();
         let help_text = vec![
-            Line::from(vec![Span::styled("Intel MCS-4 Emulator Console Help", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))]),
+            Line::from(vec![Span::styled(
+                "Intel MCS-4 Emulator Console Help",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )]),
             Line::from(""),
-            Line::from(vec![Span::styled("Commands:", Style::default().add_modifier(Modifier::BOLD))]),
-            Line::from(vec![Span::styled("  q, quit, exit", Style::default().fg(Color::Yellow)), Span::raw(" - Exit emulator")]),
-            Line::from(vec![Span::styled("  r, run", Style::default().fg(Color::Yellow)), Span::raw(" - Start/stop system execution")]),
-            Line::from(vec![Span::styled("  s, stop", Style::default().fg(Color::Yellow)), Span::raw(" - Stop system execution")]),
-            Line::from(vec![Span::styled("  h, help", Style::default().fg(Color::Yellow)), Span::raw(" - Show/hide this help")]),
-            Line::from(vec![Span::styled("  reset", Style::default().fg(Color::Yellow)), Span::raw(" - Reset system")]),
+            Line::from(vec![Span::styled(
+                "Commands:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )]),
+            Line::from(vec![
+                Span::styled("  q, quit, exit", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Exit emulator"),
+            ]),
+            Line::from(vec![
+                Span::styled("  r, run", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Start/stop system execution"),
+            ]),
+            Line::from(vec![
+                Span::styled("  s, stop", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Stop system execution"),
+            ]),
+            Line::from(vec![
+                Span::styled("  h, help", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Show/hide this help"),
+            ]),
+            Line::from(vec![
+                Span::styled("  reset", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Reset system"),
+            ]),
             Line::from(""),
-            Line::from(vec![Span::styled("Navigation:", Style::default().add_modifier(Modifier::BOLD))]),
-            Line::from(vec![Span::styled("  Tab", Style::default().fg(Color::Yellow)), Span::raw(" - Switch between panes")]),
-            Line::from(vec![Span::styled("  Enter", Style::default().fg(Color::Yellow)), Span::raw(" - Execute command")]),
-            Line::from(vec![Span::styled("  Backspace", Style::default().fg(Color::Yellow)), Span::raw(" - Delete character")]),
+            Line::from(vec![Span::styled(
+                "Navigation:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )]),
+            Line::from(vec![
+                Span::styled("  Tab", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Switch between panes"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Execute command"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Backspace", Style::default().fg(Color::Yellow)),
+                Span::raw(" - Delete character"),
+            ]),
             Line::from(""),
             Line::from(vec![Span::raw("Press any key to return to main view...")]),
         ];
@@ -326,37 +362,53 @@ impl ConsoleApp {
         let info_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8),  // System info
-                Constraint::Min(5),     // Registers
+                Constraint::Length(8), // System info
+                Constraint::Min(5),    // Registers
             ])
             .split(area);
 
         // System information
         let system_info = match self.system.lock() {
-            Ok(system) => {
-                match system.get_system_info() {
-                    info => vec![
-                        Line::from(vec![Span::raw(format!("System: {}", info.name))]),
-                        Line::from(vec![Span::raw(format!("Description: {}", info.description))]),
-                        Line::from(vec![Span::raw(format!("Components: {}", info.component_count))]),
-                        Line::from(vec![Span::raw(format!("CPU Speed: {} Hz", info.cpu_speed))]),
-                        Line::from(vec![Span::raw(format!("ROM Size: {} bytes", info.rom_size))]),
-                        Line::from(vec![Span::raw(format!("RAM Size: {} nibbles", info.ram_size))]),
-                        Line::from(vec![Span::raw(format!("Running: {}", system.is_running()))]),
-                    ]
-                }
-            }
+            Ok(system) => match system.get_system_info() {
+                info => vec![
+                    Line::from(vec![Span::raw(format!("System: {}", info.name))]),
+                    Line::from(vec![Span::raw(format!(
+                        "Description: {}",
+                        info.description
+                    ))]),
+                    Line::from(vec![Span::raw(format!(
+                        "Components: {}",
+                        info.component_count
+                    ))]),
+                    Line::from(vec![Span::raw(format!("CPU Speed: {} Hz", info.cpu_speed))]),
+                    Line::from(vec![Span::raw(format!(
+                        "ROM Size: {} bytes",
+                        info.rom_size
+                    ))]),
+                    Line::from(vec![Span::raw(format!(
+                        "RAM Size: {} nibbles",
+                        info.ram_size
+                    ))]),
+                    Line::from(vec![Span::raw(format!("Running: {}", system.is_running()))]),
+                ],
+            },
             Err(_) => {
-                vec![Line::from(vec![Span::raw("System information unavailable")])]
+                vec![Line::from(vec![Span::raw(
+                    "System information unavailable",
+                )])]
             }
         };
 
         let system_widget = Paragraph::new(system_info)
-            .block(Block::default().borders(Borders::ALL).title("System Information"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("System Information"),
+            )
             .wrap(Wrap { trim: true });
         f.render_widget(system_widget, info_chunks[0]);
 
-        // Registers (placeholder for now - would need CPU trait access)
+        // Registers (placeholder for now - would need direct CPU component access)
         let register_info = vec![
             Line::from(vec![Span::raw("CPU Registers:")]),
             Line::from(vec![Span::raw("PC: 0x0000")]),
@@ -366,7 +418,11 @@ impl ConsoleApp {
         ];
 
         let register_widget = Paragraph::new(register_info)
-            .block(Block::default().borders(Borders::ALL).title("CPU Registers"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("CPU Registers"),
+            )
             .wrap(Wrap { trim: true });
         f.render_widget(register_widget, info_chunks[1]);
     }

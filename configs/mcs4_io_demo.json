@@ -1,0 +1,243 @@
+{
+  "name": "MCS-4 I/O Demonstration System",
+  "description": "Intel MCS-4 system demonstrating 4001 I/O functionality",
+  "version": "1.0.0",
+  "metadata": {
+    "rom_size": 256,
+    "ram_size": 80,
+    "cpu_speed": 750000,
+    "io_ports": 4,
+    "description": "Demonstrates I/O port operations on Intel 4001"
+  },
+  "components": {
+    "CPU": {
+      "single": {
+        "component_type": "intel_4004",
+        "name": "CPU_4004",
+        "properties": {
+          "clock_speed": 750000
+        }
+      }
+    },
+    "CLOCK": {
+      "single": {
+        "component_type": "generic_clock",
+        "name": "CLOCK_750KHZ",
+        "properties": {
+          "frequency": 750000
+        }
+      }
+    },
+    "ROM_4001_0": {
+      "single": {
+        "component_type": "intel_4001",
+        "name": "ROM_4001_0",
+        "properties": {}
+      }
+    },
+    "RAM_4002_0": {
+      "single": {
+        "component_type": "intel_4002",
+        "name": "RAM_4002_0",
+        "properties": {
+          "variant": "Type1",
+          "access_time": 500
+        }
+      }
+    }
+  },
+  "connections": {
+    "clock_to_cpu_phi1": {
+      "connection_type": "clock",
+      "source": {
+        "component": "CLOCK_750KHZ",
+        "pin": "CLK"
+      },
+      "targets": [
+        {
+          "component": "CPU_4004",
+          "pin": "PHI1"
+        },
+        {
+          "component": "ROM_4001_0",
+          "pin": "PHI1"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "PHI1"
+        }
+      ]
+    },
+    "clock_to_cpu_phi2": {
+      "connection_type": "clock",
+      "source": {
+        "component": "CLOCK_750KHZ",
+        "pin": "CLK"
+      },
+      "targets": [
+        {
+          "component": "CPU_4004",
+          "pin": "PHI2"
+        },
+        {
+          "component": "ROM_4001_0",
+          "pin": "PHI2"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "PHI2"
+        }
+      ]
+    },
+    "data_bus": {
+      "connection_type": "bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D0"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "D0"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "D0"
+        }
+      ]
+    },
+    "data_bus_d1": {
+      "connection_type": "bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D1"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "D1"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "D1"
+        }
+      ]
+    },
+    "data_bus_d2": {
+      "connection_type": "bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D2"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "D2"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "D2"
+        }
+      ]
+    },
+    "data_bus_d3": {
+      "connection_type": "bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D3"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "D3"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "D3"
+        }
+      ]
+    },
+    "sync_signal": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "SYNC"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "SYNC"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "SYNC"
+        }
+      ]
+    },
+    "cm_rom_signal": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "CM_ROM"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "CM"
+        }
+      ]
+    },
+    "cm_ram_signal": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "CM_RAM"
+      },
+      "targets": [
+        {
+          "component": "RAM_4002_0",
+          "pin": "P0"
+        }
+      ]
+    },
+    "io_select_signal": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "TEST"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "CI"
+        }
+      ]
+    },
+    "reset_signal": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "RESET"
+      },
+      "targets": [
+        {
+          "component": "ROM_4001_0",
+          "pin": "RESET"
+        },
+        {
+          "component": "RAM_4002_0",
+          "pin": "RESET"
+        }
+      ]
+    }
+  },
+  "layout": {
+    "grid_size": [4, 4],
+    "positions": {
+      "CPU_4004": [0, 0],
+      "CLOCK_750KHZ": [0, 1],
+      "ROM_4001_0": [1, 0],
+      "RAM_4002_0": [2, 0]
+    }
+  }
+}

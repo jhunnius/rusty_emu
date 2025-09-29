@@ -17,14 +17,6 @@ enum InstructionPhase {
     Wait,    // Waiting for external operations
 }
 
-/// Represents the current phase of the two-phase clock cycle
-/// The 4004 uses a two-phase clock for synchronization with peripherals
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum ClockPhase {
-    Phase1, // First clock phase - CPU drives bus
-    Phase2, // Second clock phase - Peripherals drive bus
-}
-
 /// Memory operation state machine states
 /// Tracks the current phase of memory access operations
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -118,8 +110,6 @@ pub struct Intel4004 {
     address_latch: u8,                   // Latched address for memory operations
     data_latch: u8,                      // Latched data for memory operations
     clock_speed: f64,                    // Target clock speed in Hz
-    last_clock_transition: Instant,      // Timestamp of last clock transition
-    clock_phase: ClockPhase,             // Current clock phase
     rom_port: u8,                        // Currently selected ROM port (0-15)
     ram_bank: u8,                        // Currently selected RAM bank (0-7)
 
@@ -134,9 +124,7 @@ pub struct Intel4004 {
     full_address_ready: bool,        // Whether complete address is assembled
 
     // Instruction execution state
-    current_op: Instruction,   // Currently decoded instruction
-    operand_latch: u8,         // Latched operand for multi-byte instructions
-    jump_address: Option<u16>, // Jump target address for conditional jumps
+    current_op: Instruction, // Currently decoded instruction
 
     // Timing and synchronization
     address_latch_time: Option<Instant>, // Timestamp when address was latched
@@ -175,8 +163,6 @@ impl Intel4004 {
             address_latch: 0,
             data_latch: 0,
             clock_speed,
-            last_clock_transition: Instant::now(),
-            clock_phase: ClockPhase::Phase1,
             rom_port: 0,
             ram_bank: 0,
 
@@ -192,8 +178,6 @@ impl Intel4004 {
 
             // Instruction execution state
             current_op: Instruction::Invalid,
-            operand_latch: 0,
-            jump_address: None,
 
             // Timing and synchronization
             address_latch_time: None,
@@ -390,37 +374,6 @@ impl Intel4004 {
         };
 
         (phi1, phi2)
-    }
-
-    /// Check for Φ1 rising edge
-    fn is_phi1_rising_edge(&self) -> bool {
-        let (phi1, _) = self.read_clock_pins();
-        phi1 == PinValue::High && self.prev_phi1 == PinValue::Low
-    }
-
-    /// Check for Φ1 falling edge
-    fn is_phi1_falling_edge(&self) -> bool {
-        let (phi1, _) = self.read_clock_pins();
-        phi1 == PinValue::Low && self.prev_phi1 == PinValue::High
-    }
-
-    /// Check for Φ2 rising edge
-    fn is_phi2_rising_edge(&self) -> bool {
-        let (_, phi2) = self.read_clock_pins();
-        phi2 == PinValue::High && self.prev_phi2 == PinValue::Low
-    }
-
-    /// Check for Φ2 falling edge
-    fn is_phi2_falling_edge(&self) -> bool {
-        let (_, phi2) = self.read_clock_pins();
-        phi2 == PinValue::Low && self.prev_phi2 == PinValue::High
-    }
-
-    /// Update clock state tracking for edge detection
-    fn update_clock_states(&mut self) {
-        let (phi1, phi2) = self.read_clock_pins();
-        self.prev_phi1 = phi1;
-        self.prev_phi2 = phi2;
     }
 
     /// Handle Φ1 rising edge - Address and control phase
@@ -629,13 +582,6 @@ impl Intel4004 {
         self.address_high_nibble = None;
         self.address_low_nibble = None;
         self.full_address_ready = false;
-    }
-
-    /// Handle clock cycle processing
-    /// Updates cycle count and manages clock phase transitions
-    fn handle_clock(&mut self) {
-        // Simple clock simulation for now
-        self.cycle_count += 1;
     }
 
     /// Decode an instruction byte into an Instruction enum

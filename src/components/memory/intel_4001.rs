@@ -20,12 +20,15 @@ use crate::pin::{Pin, PinValue};
 /// - SYNC logic simplified for unit testing (may need refinement for CPU integration)
 pub struct Intel4001 {
     base: BaseComponent,
-    memory: Vec<u8>,       // 256-byte ROM storage
-    last_address: u16,     // Last accessed memory address
-    access_time: Duration, // ROM access latency (500ns)
-    output_latch: u8,      // 4-bit output latch for I/O operations
-    input_latch: u8,       // 4-bit input latch for I/O operations
-    io_mode: IoMode,       // Current I/O mode configuration
+    memory: Vec<u8>,                 // 256-byte ROM storage
+    last_address: u16,               // Last accessed memory address
+    access_time: Duration,           // ROM access latency (500ns)
+    output_latch: u8,                // 4-bit output latch for I/O operations
+    input_latch: u8,                 // 4-bit input latch for I/O operations
+    io_mode: IoMode,                 // Current I/O mode configuration
+    io_ports: [u8; 4],               // 4 I/O ports (4 bits each) - matches datasheet
+    io_direction: [IoDirection; 4],  // I/O direction for each port
+    selected_io_port: Option<usize>, // Currently selected I/O port (0-3)
     // Clock edge detection
     prev_phi1: PinValue, // Previous Φ1 clock state for edge detection
     prev_phi2: PinValue, // Previous Φ2 clock state for edge detection
@@ -42,10 +45,17 @@ pub struct Intel4001 {
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// I/O mode configuration for the 4001 ROM
 /// Determines how the I/O pins are configured during read/write operations
-enum IoMode {
+pub enum IoMode {
     Input,         // I/O pins configured as inputs (RDM instruction)
     Output,        // I/O pins configured as outputs (WRM instruction)
     Bidirectional, // I/O pins bidirectional (not used in 4001)
+}
+
+/// I/O direction for each I/O port
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum IoDirection {
+    Input,  // Port configured as input
+    Output, // Port configured as output
 }
 
 impl Intel400xClockHandling for Intel4001 {
@@ -85,6 +95,13 @@ impl Intel400xResetHandling for Intel4001 {
         self.address_low_nibble = None;
         self.address_high_nibble = None;
         self.full_address_ready = false;
+
+        // Reset I/O state
+        self.io_ports = [0u8; 4];
+        self.io_direction = [IoDirection::Input; 4];
+        self.selected_io_port = None;
+        self.io_mode = IoMode::Input; // Reset I/O mode to Input
+        self.tri_state_io_pins();
     }
 }
 
@@ -182,6 +199,9 @@ impl Intel4001 {
             output_latch: 0,
             input_latch: 0,
             io_mode: IoMode::Input,
+            io_ports: [0u8; 4],                    // Initialize all I/O ports to 0
+            io_direction: [IoDirection::Input; 4], // Default all ports to input
+            selected_io_port: None,                // No I/O port selected initially
             prev_phi1: PinValue::Low,
             prev_phi2: PinValue::Low,
             address_latch_time: None,
@@ -254,22 +274,6 @@ impl Intel4001 {
         data
     }
 
-    fn write_io_pins(&self, data: u8) {
-        for i in 0..4 {
-            if let Ok(pin) = self.base.get_pin(&format!("IO{}", i)) {
-                if let Ok(mut pin_guard) = pin.lock() {
-                    let bit_value = (data >> i) & 1;
-                    let pin_value = if bit_value == 1 {
-                        PinValue::High
-                    } else {
-                        PinValue::Low
-                    };
-                    pin_guard.set_driver(Some(self.base.name()), pin_value);
-                }
-            }
-        }
-    }
-
     /// Handle Φ1 rising edge - Address and control phase
     /// Hardware: Φ1 high = CPU drives bus with address/control information
     /// Memory operations start when SYNC goes high during Φ1 rising edge
@@ -285,16 +289,19 @@ impl Intel4001 {
         // I/O access: CM=1 (chip_select), CI=1 (io_select)
         let sync = self.read_sync_pin();
         let chip_select = self.read_cm_rom_pin();
-        let io_select = self.read_reset_pin(); // Using reset pin as CI for now
+        let io_select = self.read_ci_pin();
+
         if sync && chip_select && !io_select {
-            // Start memory address phase on Φ1 rising edge
+            // Start memory address phase on Φ1 rising edge (ROM access)
             self.start_memory_address_phase();
         }
 
         // Handle I/O operations (higher priority than memory operations)
         // I/O operations: CM=1 (chip_select), CI=1 (io_select)
         // Note: SYNC is NOT required for I/O - only marks instruction fetch (ROM access)
-        self.handle_io_operation();
+        if chip_select && io_select {
+            self.handle_io_operation();
+        }
 
         // Handle memory address phase operations during Φ1
         self.handle_memory_address_operations();
@@ -334,33 +341,139 @@ impl Intel4001 {
         }
     }
 
-    /// Handle I/O port operations
+    /// Set I/O mode for WRM/RDM instruction handling
+    /// Parameters: mode - I/O mode (Input for RDM, Output for WRM)
+    pub fn set_io_mode(&mut self, mode: IoMode) {
+        self.io_mode = mode;
+    }
+
+    /// Get current I/O mode
+    /// Returns: Current I/O mode
+    pub fn get_io_mode(&self) -> IoMode {
+        self.io_mode
+    }
+
+    /// Handle I/O port operations according to Intel 4001 datasheet
     /// Hardware: I/O operations occur during I/O instructions (WRM/RDM)
     /// Direction determined by CPU instruction, not manual configuration
     /// Note: I/O pins remain driven after WRM until another WRM or reset.
     /// This matches real 4001 hardware where I/O ports are latched.
-    /// Hardware deviation: Model writes IO latch to D0-D3 for test convenience,
-    /// but real hardware reads I/O pins directly.
+    ///
+    /// I/O Port Addressing (datasheet):
+    /// - I/O ports are addressed using the lower 2 bits of the address
+    /// - Port 0: Address 0x00, Port 1: Address 0x01, etc.
+    /// - Each port is 4 bits wide (matches the data bus width)
     ///
     /// I/O Latch Persistence:
     /// - Output latch persists after WRM until next WRM or reset
     /// - Input latch overwrites every RDM (I/O input pins are live reads)
     fn handle_io_operation(&mut self) {
-        let _sync = self.read_sync_pin();
         let chip_select = self.read_cm_rom_pin();
-        let io_select = self.read_reset_pin(); // Using reset pin as CI for now
+        let io_select = self.read_ci_pin(); // Proper CI pin for I/O vs ROM selection
 
         // I/O operations occur when: CM=1 (chip_select), CI=1 (io_select)
         // Note: SYNC is NOT required for I/O - only marks instruction fetch (ROM access)
         if chip_select && io_select {
-            let _address_low = self.read_data_bus(); // I/O port address (lower 4 bits)
+            let port_address = self.read_data_bus() & 0x03; // Lower 2 bits for port selection (0-3)
+            self.selected_io_port = Some(port_address as usize);
 
-            // Real 4001 I/O behavior based on CPU instructions:
-            // RDM instruction: Read from I/O port
-            self.input_latch = self.read_io_pins();
-            // Hardware deviation: Write to D0-D3 for test convenience
-            self.write_data_bus(self.input_latch);
-            self.io_mode = IoMode::Input;
+            // Determine operation type based on current instruction phase
+            // In real hardware, this would be determined by the CPU instruction (WRM vs RDM)
+            match self.io_mode {
+                IoMode::Input => {
+                    // RDM instruction: Read from I/O port
+                    if let Some(port) = self.selected_io_port {
+                        self.input_latch = self.read_io_port(port);
+                        // Write input data to data bus for CPU to read
+                        self.write_data_bus(self.input_latch);
+                    }
+                }
+                IoMode::Output => {
+                    // WRM instruction: Write to I/O port
+                    if let Some(port) = self.selected_io_port {
+                        let data = self.read_data_bus();
+                        self.write_io_port(port, data);
+                    }
+                }
+                IoMode::Bidirectional => {
+                    // Not used in 4001, treat as input
+                    if let Some(port) = self.selected_io_port {
+                        self.input_latch = self.read_io_port(port);
+                        self.write_data_bus(self.input_latch);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Read the CI (I/O select) pin state
+    /// Hardware: CI pin distinguishes I/O vs ROM access when chip selected (CM=1)
+    fn read_ci_pin(&self) -> bool {
+        if let Ok(pin) = self.base.get_pin("CI") {
+            if let Ok(pin_guard) = pin.lock() {
+                pin_guard.read() == PinValue::High
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Read from a specific I/O port
+    /// Parameters: port - I/O port number (0-3)
+    /// Returns: 4-bit value from the I/O port
+    fn read_io_port(&self, port: usize) -> u8 {
+        if port < 4 {
+            match self.io_direction[port] {
+                IoDirection::Input => {
+                    // Read from actual I/O pins
+                    self.read_io_pins()
+                }
+                IoDirection::Output => {
+                    // Read from output latch (for read-back capability)
+                    self.io_ports[port]
+                }
+            }
+        } else {
+            0
+        }
+    }
+
+    /// Write to a specific I/O port
+    /// Parameters: port - I/O port number (0-3), data - 4-bit data to write
+    fn write_io_port(&mut self, port: usize, data: u8) {
+        if port < 4 {
+            self.io_ports[port] = data & 0x0F;
+            self.io_direction[port] = IoDirection::Output;
+            self.update_io_pins();
+        }
+    }
+
+    /// Update I/O pins based on current port values and directions
+    /// Hardware: Only output ports drive the I/O pins
+    fn update_io_pins(&self) {
+        for i in 0..4 {
+            if let Ok(pin) = self.base.get_pin(&format!("IO{}", i)) {
+                if let Ok(mut pin_guard) = pin.lock() {
+                    match self.io_direction[i] {
+                        IoDirection::Output => {
+                            // Drive pin with output port value
+                            let bit_value = (self.io_ports[i]) & 1;
+                            let pin_value = if bit_value == 1 {
+                                PinValue::High
+                            } else {
+                                PinValue::Low
+                            };
+                            pin_guard.set_driver(Some(self.base.name()), pin_value);
+                        }
+                        IoDirection::Input => {
+                            // Input mode - tri-state the pin
+                            pin_guard.set_driver(Some(self.base.name()), PinValue::HighZ);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -553,7 +666,7 @@ impl Intel4001 {
     fn handle_data_driving(&mut self) {
         let sync = self.read_sync_pin();
         let chip_select = self.read_cm_rom_pin();
-        let io_select = self.read_reset_pin(); // Using reset pin as CI for now
+        let io_select = self.read_ci_pin();
 
         println!(
             "DEBUG: {} - handle_data_driving: SYNC={}, CM={}, CI={}, Address_Ready={}",
@@ -729,6 +842,61 @@ impl Intel4001 {
         self.input_latch
     }
 
+    /// Get I/O port value
+    /// Parameters: port - I/O port number (0-3)
+    /// Returns: Some(4-bit value) if port valid, None if invalid
+    pub fn get_io_port(&self, port: usize) -> Option<u8> {
+        if port < 4 {
+            Some(self.io_ports[port])
+        } else {
+            None
+        }
+    }
+
+    /// Set I/O port value (for testing/debugging)
+    /// Parameters: port - I/O port number (0-3), data - 4-bit data to set
+    /// Returns: Ok(()) on success, Err(String) on failure
+    pub fn set_io_port(&mut self, port: usize, data: u8) -> Result<(), String> {
+        if port < 4 {
+            self.io_ports[port] = data & 0x0F;
+            self.io_direction[port] = IoDirection::Output;
+            self.update_io_pins();
+            Ok(())
+        } else {
+            Err("I/O port number out of range (0-3)".to_string())
+        }
+    }
+
+    /// Get I/O port direction
+    /// Parameters: port - I/O port number (0-3)
+    /// Returns: Some(direction) if port valid, None if invalid
+    pub fn get_io_direction(&self, port: usize) -> Option<IoDirection> {
+        if port < 4 {
+            Some(self.io_direction[port])
+        } else {
+            None
+        }
+    }
+
+    /// Set I/O port direction (for testing/debugging)
+    /// Parameters: port - I/O port number (0-3), direction - I/O direction
+    /// Returns: Ok(()) on success, Err(String) on failure
+    pub fn set_io_direction(&mut self, port: usize, direction: IoDirection) -> Result<(), String> {
+        if port < 4 {
+            self.io_direction[port] = direction;
+            self.update_io_pins();
+            Ok(())
+        } else {
+            Err("I/O port number out of range (0-3)".to_string())
+        }
+    }
+
+    /// Get currently selected I/O port
+    /// Returns: Some(port_number) if a port is selected, None otherwise
+    pub fn get_selected_io_port(&self) -> Option<usize> {
+        self.selected_io_port
+    }
+
     /// Debug function to log state transitions for troubleshooting
     /// Parameters: test_name - Name of the test for context
     pub fn debug_state_transitions(&self, test_name: &str) {
@@ -752,6 +920,15 @@ impl std::fmt::Display for IoMode {
             IoMode::Input => write!(f, "Input"),
             IoMode::Output => write!(f, "Output"),
             IoMode::Bidirectional => write!(f, "Bidirectional"),
+        }
+    }
+}
+
+impl std::fmt::Display for IoDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IoDirection::Input => write!(f, "Input"),
+            IoDirection::Output => write!(f, "Output"),
         }
     }
 }
@@ -841,7 +1018,6 @@ mod tests {
         assert_eq!(rom.read_rom(0x01).unwrap(), 0x34);
     }
 
-
     #[test]
     fn test_memory_operation_start() {
         let mut rom = Intel4001::new_with_access_time("ROM_4001".to_string(), 1);
@@ -878,9 +1054,6 @@ mod tests {
         assert_eq!(rom.memory_state, MemoryState::AddressPhase);
         println!("Memory state after Φ1 rising: {:?}", rom.memory_state);
     }
-
-
-
 
     #[test]
     fn test_clock_driven_memory_fetch() {
@@ -1020,7 +1193,6 @@ mod tests {
         assert_eq!(d3_pin.lock().unwrap().read(), PinValue::HighZ);
     }
 
-
     #[test]
     fn test_intel4001_state_transitions() {
         let mut rom = Intel4001::new_with_access_time("StateTestROM".to_string(), 1);
@@ -1078,4 +1250,94 @@ mod tests {
         assert!(rom.load_rom_data(vec![0x12], 256).is_err()); // Invalid - out of bounds
     }
 
+    #[test]
+    fn test_intel4001_io_port_operations() {
+        let mut rom = Intel4001::new("IOTestROM".to_string());
+
+        // Test I/O port initialization
+        assert_eq!(rom.get_io_port(0).unwrap(), 0);
+        assert_eq!(rom.get_io_port(1).unwrap(), 0);
+        assert_eq!(rom.get_io_port(2).unwrap(), 0);
+        assert_eq!(rom.get_io_port(3).unwrap(), 0);
+
+        // Test I/O direction initialization
+        assert_eq!(rom.get_io_direction(0).unwrap(), IoDirection::Input);
+        assert_eq!(rom.get_io_direction(1).unwrap(), IoDirection::Input);
+
+        // Test setting I/O port values
+        assert!(rom.set_io_port(0, 0x05).is_ok());
+        assert_eq!(rom.get_io_port(0).unwrap(), 0x05);
+        assert_eq!(rom.get_io_direction(0).unwrap(), IoDirection::Output);
+
+        // Test invalid port access
+        assert!(rom.set_io_port(4, 0x0F).is_err());
+        assert!(rom.get_io_port(4).is_none());
+        assert!(rom.set_io_direction(4, IoDirection::Output).is_err());
+        assert!(rom.get_io_direction(4).is_none());
+    }
+
+    #[test]
+    fn test_intel4001_io_mode_control() {
+        let mut rom = Intel4001::new("ModeTestROM".to_string());
+
+        // Test initial I/O mode
+        assert_eq!(rom.get_io_mode(), IoMode::Input);
+
+        // Test setting I/O modes
+        rom.set_io_mode(IoMode::Output);
+        assert_eq!(rom.get_io_mode(), IoMode::Output);
+
+        rom.set_io_mode(IoMode::Input);
+        assert_eq!(rom.get_io_mode(), IoMode::Input);
+
+        rom.set_io_mode(IoMode::Bidirectional);
+        assert_eq!(rom.get_io_mode(), IoMode::Bidirectional);
+    }
+
+    #[test]
+    fn test_intel4001_io_port_selection() {
+        let rom = Intel4001::new("SelectionTestROM".to_string());
+
+        // Initially no port selected
+        assert_eq!(rom.get_selected_io_port(), None);
+
+        // Test I/O port selection during operation
+        // This would be set during actual I/O operations
+        // For testing, we can verify the field exists and can be modified
+        assert_eq!(rom.selected_io_port, None);
+    }
+
+    #[test]
+    fn test_io_direction_display() {
+        assert_eq!(IoDirection::Input.to_string(), "Input");
+        assert_eq!(IoDirection::Output.to_string(), "Output");
+    }
+
+    #[test]
+    fn test_intel4001_reset_io_behavior() {
+        let mut rom = Intel4001::new("ResetIOTestROM".to_string());
+
+        // Set up some I/O state
+        rom.set_io_port(0, 0x05).unwrap();
+        rom.set_io_port(1, 0x0A).unwrap();
+        rom.set_io_direction(0, IoDirection::Output).unwrap();
+        rom.set_io_direction(1, IoDirection::Output).unwrap();
+        rom.set_io_mode(IoMode::Output);
+
+        // Verify state is set
+        assert_eq!(rom.get_io_port(0).unwrap(), 0x05);
+        assert_eq!(rom.get_io_port(1).unwrap(), 0x0A);
+        assert_eq!(rom.get_io_direction(0).unwrap(), IoDirection::Output);
+        assert_eq!(rom.get_io_mode(), IoMode::Output);
+
+        // Perform reset
+        rom.perform_reset();
+
+        // Verify I/O state is cleared
+        assert_eq!(rom.get_io_port(0).unwrap(), 0);
+        assert_eq!(rom.get_io_port(1).unwrap(), 0);
+        assert_eq!(rom.get_io_direction(0).unwrap(), IoDirection::Input);
+        assert_eq!(rom.get_io_mode(), IoMode::Input);
+        assert_eq!(rom.get_selected_io_port(), None);
+    }
 }

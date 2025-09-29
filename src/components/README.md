@@ -47,11 +47,23 @@ All components implement the base `Component` trait defined in `src/component.rs
 - **File**: `intel_4001.rs`
 - **Features**:
     - 256 bytes of mask-programmable ROM
-    - 4-bit I/O ports for peripheral interface
+    - 4-bit I/O ports for peripheral interface (datasheet-compliant)
     - Two-phase addressing (8-bit address in two 4-bit cycles)
     - 500ns typical access time
     - SYNC signal detection for instruction fetch
+    - I/O port addressing via SRC instruction (ports 0-3)
+    - WRM/RDM instruction support for I/O operations
+    - I/O direction control (input/output per port)
+    - I/O latch persistence as per datasheet specifications
 - **Status**: Fully implemented with comprehensive testing
+
+##### I/O Port Features
+
+- **Port Addressing**: I/O ports 0-3 addressed using lower 2 bits of address
+- **Direction Control**: Each port can be configured as input or output
+- **Latch Persistence**: Output values persist until changed or reset
+- **CPU Control**: I/O operations controlled by WRM/RDM instructions
+- **Pin Interface**: IO0-IO3 pins for external peripheral connection
 
 #### Intel 4002 RAM
 
@@ -128,8 +140,6 @@ fn is_running(&self) -> bool;               // Execution status
 Components can implement additional traits for specialized functionality:
 
 - **RunnableComponent**: Automatic thread spawning
-- **CPU**: Processor-specific operations
-- **Memory**: Storage-specific operations
 
 ## Pin Configuration
 
@@ -205,7 +215,7 @@ connect_pins(vec![cpu_pin, rom_pin, ram_pin]) ?;
 1. **Implement Core Traits**: Start with `Component` trait implementation
 2. **Define Pin Configuration**: Specify required pins and their purposes
 3. **Implement Timing**: Add clock cycle processing in `update()` method
-4. **Add Specialized Traits**: Implement CPU, Memory, or other specialized traits as needed
+4. **Add Specialized Functionality**: Implement component-specific methods and behaviors as needed
 5. **Write Tests**: Add comprehensive unit tests for the new component
 6. **Update Exports**: Add the component to the appropriate module exports
 

@@ -83,7 +83,10 @@ fn main() {
     println!("===================");
     println!("System: {}", system_type);
     println!("Program: {}", program_file);
-    println!("Console: {}", if use_console { "Enabled" } else { "Disabled" });
+    println!(
+        "Console: {}",
+        if use_console { "Enabled" } else { "Disabled" }
+    );
 
     // Load program data
     let program_data = match load_program_data(&program_file) {
