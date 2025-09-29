@@ -3,7 +3,7 @@ pub mod component;
 pub mod components;
 pub mod connection;
 pub mod pin;
-pub mod systems;
+pub mod system_config;
 pub mod types;
 
 // Re-export commonly used items for easier importing

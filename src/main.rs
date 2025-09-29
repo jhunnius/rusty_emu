@@ -1,4 +1,4 @@
-use rusty_emu::systems::intel_mcs_4::IntelMcs4;
+use rusty_emu::system_config::{SystemFactory, ConfigurableSystem};
 use std::env;
 use std::fs;
 use std::process;
@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
-    let mut system_type = "mcs4".to_string();
+    let mut system_type = "basic".to_string();
     let mut program_file = "fibonacci.bin".to_string();
 
     let mut i = 1;
@@ -89,28 +89,46 @@ fn print_usage(program_name: &str) {
     println!("Usage: {} [OPTIONS]", program_name);
     println!();
     println!("Options:");
-    println!("  -s, --system <SYSTEM>    System type to run (default: mcs4)");
+    println!("  -s, --system <SYSTEM>    System type to run (default: basic)");
+    println!("                           Available: basic, max, fig1, or JSON config file");
     println!("  -f, --file <FILE>        Program binary file to load (default: fibonacci.bin)");
     println!("  -h, --help              Show this help message");
     println!();
+    println!("System Types:");
+    println!("  basic  - Basic MCS-4 system (CPU, clock, 2 ROMs, 1 RAM)");
+    println!("  max    - Fig.1 MCS-4 Max system (16 ROMs, 16 RAMs, shift registers)");
+    println!("  fig1   - Same as 'max'");
+    println!("  *.json - Custom system configuration file");
+    println!();
     println!("Examples:");
-    println!("  {} -s mcs4 -f fibonacci.bin", program_name);
-    println!("  {} --system mcs4 --file myprogram.bin", program_name);
+    println!("  {} -s basic -f fibonacci.bin", program_name);
+    println!("  {} --system max", program_name);
+    println!("  {} --system custom_config.json", program_name);
 }
 
 fn load_program_data(filename: &str) -> Result<Vec<u8>, String> {
     println!("DEBUG: Attempting to load program from: {}", filename);
     match fs::read(filename) {
         Ok(data) => {
-            println!("DEBUG: Successfully loaded {} bytes from {}", data.len(), filename);
+            println!(
+                "DEBUG: Successfully loaded {} bytes from {}",
+                data.len(),
+                filename
+            );
             Ok(data)
         }
         Err(e) => {
             // If file doesn't exist, try to use default program
             if filename == "fibonacci.bin" {
-                println!("DEBUG: File {} not found ({}), using default fibonacci program", filename, e);
+                println!(
+                    "DEBUG: File {} not found ({}), using default fibonacci program",
+                    filename, e
+                );
                 let default_program = get_default_fibonacci_program();
-                println!("DEBUG: Default program size: {} bytes", default_program.len());
+                println!(
+                    "DEBUG: Default program size: {} bytes",
+                    default_program.len()
+                );
                 Ok(default_program)
             } else {
                 println!("DEBUG: Failed to read file {}: {}", filename, e);
@@ -124,79 +142,67 @@ fn get_default_fibonacci_program() -> Vec<u8> {
     // Fibonacci program for Intel 4004
     // This implements a simple Fibonacci sequence generator
     vec![
-        0x20, 0x00,  // LDM 0 (Load accumulator with 0) - First Fibonacci number
-        0x10, 0x00,  // LD 0 (Load accumulator from register 0)
-        0x50,        // WRM (Write accumulator to RAM at current pointer)
-        0x21, 0x01,  // LDM 1 (Load accumulator with 1) - Second Fibonacci number
-        0x10, 0x01,  // LD 1 (Load accumulator from register 1)
-        0x50,        // WRM (Write accumulator to RAM)
-
+        0x20, 0x00, // LDM 0 (Load accumulator with 0) - First Fibonacci number
+        0x10, 0x00, // LD 0 (Load accumulator from register 0)
+        0x50, // WRM (Write accumulator to RAM at current pointer)
+        0x21, 0x01, // LDM 1 (Load accumulator with 1) - Second Fibonacci number
+        0x10, 0x01, // LD 1 (Load accumulator from register 1)
+        0x50, // WRM (Write accumulator to RAM)
         // Fibonacci calculation loop
-        0x00, 0x02,  // LD 2 (Load register 2 into accumulator) - Loop counter
-        0x76,        // IAC (Increment accumulator)
-        0x00, 0x02,  // LD 2 (Store back to register 2)
-
+        0x00, 0x02, // LD 2 (Load register 2 into accumulator) - Loop counter
+        0x76, // IAC (Increment accumulator)
+        0x00, 0x02, // LD 2 (Store back to register 2)
         // Calculate next Fibonacci number: F(n) = F(n-1) + F(n-2)
-        0x00, 0x00,  // LD 0 (Load F(n-2) into accumulator)
-        0x10, 0x01,  // ADD 1 (Add F(n-1) to accumulator)
-        0x50,        // WRM (Store result to RAM)
-
+        0x00, 0x00, // LD 0 (Load F(n-2) into accumulator)
+        0x10, 0x01, // ADD 1 (Add F(n-1) to accumulator)
+        0x50, // WRM (Store result to RAM)
         // Update registers for next iteration
-        0x00, 0x01,  // LD 1 (Load F(n-1) into accumulator)
-        0x00, 0x00,  // LD 0 (Store F(n-1) to register 0)
-        0x50,        // WRM (Write to RAM - this will be read back as F(n-2))
-
+        0x00, 0x01, // LD 1 (Load F(n-1) into accumulator)
+        0x00, 0x00, // LD 0 (Store F(n-1) to register 0)
+        0x50, // WRM (Write to RAM - this will be read back as F(n-2))
         // Check if we've calculated enough numbers (8 iterations)
-        0x00, 0x02,  // LD 2 (Load loop counter)
-        0x30, 0x08,  // JCN 8 (Jump if accumulator == 8) - Exit condition
-        0x40, 0x0C,  // JCN 12 (Jump back to loop start)
-
+        0x00, 0x02, // LD 2 (Load loop counter)
+        0x30, 0x08, // JCN 8 (Jump if accumulator == 8) - Exit condition
+        0x40, 0x0C, // JCN 12 (Jump back to loop start)
         // Exit - halt program
-        0x00, 0x00,  // NOP (placeholder for halt)
+        0x00, 0x00, // NOP (placeholder for halt)
     ]
 }
 
-fn create_system(system_type: &str, program_data: &[u8]) -> Result<IntelMcs4, String> {
+fn create_system(system_type: &str, _program_data: &[u8]) -> Result<ConfigurableSystem, String> {
+    let factory = SystemFactory::new();
+
     match system_type {
-        "mcs4" => {
-            let system = IntelMcs4::new();
-
-            // Split program between ROMs
-            let rom1_size = 256;
-            let rom1_data = if program_data.len() > rom1_size {
-                program_data[..rom1_size].to_vec()
-            } else {
-                program_data.to_vec()
-            };
-
-            let rom2_data = if program_data.len() > rom1_size {
-                program_data[rom1_size..].to_vec()
-            } else {
-                vec![0; 256]
-            };
-
-            // Load program into ROMs
-            let mut system = system;
-            system.load_program(rom1_data, rom2_data)
-                .map_err(|e| format!("Failed to load program: {}", e))?;
-
-            // Initialize RAM with some data for the program
-            let initial_data = [0x00, 0x01];
-            system.load_ram_data(&initial_data, 0)
-                .map_err(|e| format!("Failed to initialize RAM: {}", e))?;
-
-            system.reset_system();
-            Ok(system)
+        "mcs4" | "basic" => {
+            // Use the basic MCS-4 configuration
+            factory.create_from_json("configs/mcs4_basic.json")
+                .map_err(|e| format!("Failed to create basic MCS-4 system: {}", e))
         }
-        _ => Err(format!("Unknown system type: {}", system_type))
+        "mcs4_max" | "max" | "fig1" => {
+            // Use the Fig.1 MCS-4 Max configuration
+            factory.create_from_json("configs/mcs4_max.json")
+                .map_err(|e| format!("Failed to create MCS-4 Max system: {}", e))
+        }
+        _ => {
+            // Try to use provided config file directly
+            if system_type.ends_with(".json") {
+                factory.create_from_json(system_type)
+                    .map_err(|e| format!("Failed to create system from '{}': {}", system_type, e))
+            } else {
+                Err(format!("Unknown system type: {}. Use 'basic', 'max', or provide a JSON config file path.", system_type))
+            }
+        }
     }
 }
 
-fn run_system_demo(system: IntelMcs4) {
+fn run_system_demo(system: ConfigurableSystem) {
     let start_time = Instant::now();
 
-    println!("Cycle | Accumulator | PC");
-    println!("------|-------------|------");
+    // Display system information
+    let info = system.get_system_info();
+    println!("System: {} - {}", info.name, info.description);
+    println!("Components: {}", info.component_count);
+    println!("CPU Speed: {} Hz", info.cpu_speed);
 
     // Run system in a separate thread
     let system_arc = std::sync::Arc::new(std::sync::Mutex::new(system));
@@ -208,25 +214,20 @@ fn run_system_demo(system: IntelMcs4) {
         }
     });
 
-    // Monitor CPU state in main thread
+    // Monitor system state
     let mut iteration = 0;
-
-    while iteration < 20 {
-        thread::sleep(Duration::from_millis(200));
+    while iteration < 10 {
+        thread::sleep(Duration::from_millis(500));
 
         if let Ok(system) = system_arc.lock() {
-            if let Ok(state) = system.get_cpu_state() {
-                println!(
-                    "{:5} | {:11} | {:04X}",
-                    state.cycle_count,
-                    state.accumulator,
-                    state.program_counter
-                );
-                iteration += 1;
+            if !system.is_running() {
+                break;
             }
         }
 
-        if iteration >= 15 {
+        iteration += 1;
+
+        if iteration >= 8 {
             if let Ok(mut system) = system_arc.lock() {
                 system.stop();
             }

@@ -4,12 +4,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::component::{BaseComponent, Component, RunnableComponent};
-use crate::pin::{Pin, PinValue};
 use crate::components::common::intel_400x::{
-    Intel400xClockHandling, Intel400xDataBus, Intel400xAddressHandling,
-    Intel400xControlPins, Intel400xResetHandling, Intel400xTimingState,
-    TimingState, MemoryState, RamState, utils
+    Intel400xAddressHandling, Intel400xClockHandling, Intel400xControlPins,
+    Intel400xDataBus, Intel400xResetHandling, Intel400xTimingState, RamState,
+    TimingState,
 };
+use crate::pin::{Pin, PinValue};
 
 /// Intel 4002 - 320-bit RAM (80 nibbles × 4 bits) with integrated output ports
 /// Part of the MCS-4 family, designed to work with Intel 4004 CPU
@@ -28,39 +28,38 @@ use crate::components::common::intel_400x::{
 /// - Bank selection and status character handling follows Intel MCS-4 architecture
 pub struct Intel4002 {
     base: BaseComponent,
-    variant: RamVariant,           // RAM variant (4002-1 or 4002-2)
-    memory: [u8; 80],              // 80 nibbles of RAM (320 bits total) - 4 banks × 20 nibbles
-    last_address: u8,              // Last accessed memory address
-    access_time: Duration,         // RAM access latency (500ns typical)
+    variant: RamVariant,                 // RAM variant (4002-1 or 4002-2)
+    memory: [u8; 80], // 80 nibbles of RAM (320 bits total) - 4 banks × 20 nibbles
+    last_address: u8, // Last accessed memory address
+    access_time: Duration, // RAM access latency (500ns typical)
     address_latch_time: Option<Instant>, // Timestamp when address was latched
-    output_ports: [u8; 4],         // 4 output ports (4 bits each) - TODO: Make [[u8; 4]; 4] for 4-bit ports
-    input_latch: u8,               // Input data latch for I/O operations
-    status_characters: [u8; 4],    // 4 separate status character latches (4 bits each)
-    bank_select: u8,               // RAM bank selection (2 bits)
+    output_ports: [u8; 4], // 4 output ports (4 bits each) - TODO: Make [[u8; 4]; 4] for 4-bit ports
+    input_latch: u8,  // Input data latch for I/O operations
+    status_characters: [u8; 4], // 4 separate status character latches (4 bits each)
+    bank_select: u8,  // RAM bank selection (2 bits)
     // Clock edge detection (same as 4001)
-    prev_phi1: PinValue,           // Previous Φ1 clock state for edge detection
-    prev_phi2: PinValue,           // Previous Φ2 clock state for edge detection
+    prev_phi1: PinValue, // Previous Φ1 clock state for edge detection
+    prev_phi2: PinValue, // Previous Φ2 clock state for edge detection
     // Two-phase addressing for 8-bit address (same as 4001)
     address_high_nibble: Option<u8>, // High nibble of 8-bit address
     address_low_nibble: Option<u8>,  // Low nibble of 8-bit address
     full_address_ready: bool,        // Whether complete address is assembled
     // RAM operation state machine
-    ram_state: RamState,           // Current state of RAM operation
+    ram_state: RamState, // Current state of RAM operation
     // Data latching for RAM operations
-    data_latch: Option<u8>,        // Latched data for write operations
+    data_latch: Option<u8>, // Latched data for write operations
     // Instruction cycle tracking
-    instruction_phase: bool,       // Whether we're in instruction phase
-    current_instruction: u8,       // Current instruction being processed
+    instruction_phase: bool, // Whether we're in instruction phase
+    current_instruction: u8, // Current instruction being processed
 }
-
 
 /// Intel 4002 RAM variants
 /// - 4002-1: Standard RAM variant
 /// - 4002-2: RAM variant with different configuration
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RamVariant {
-    Type1,  // 4002-1
-    Type2,  // 4002-2
+    Type1, // 4002-1
+    Type2, // 4002-2
 }
 
 /// Intel 4002 timing constants (based on datasheet specifications)
@@ -68,10 +67,10 @@ pub enum RamVariant {
 struct TimingConstants;
 
 impl TimingConstants {
-    const ADDRESS_SETUP: Duration = Duration::from_nanos(100);  // T_ADDRESS_SETUP
-    const DATA_VALID: Duration = Duration::from_nanos(200);     // T_DATA_VALID
+    const ADDRESS_SETUP: Duration = Duration::from_nanos(100); // T_ADDRESS_SETUP
+    const DATA_VALID: Duration = Duration::from_nanos(200); // T_DATA_VALID
     const OUTPUT_DISABLE: Duration = Duration::from_nanos(150); // T_OUTPUT_DISABLE
-    const RAM_ACCESS: Duration = Duration::from_nanos(500);     // RAM access time
+    const RAM_ACCESS: Duration = Duration::from_nanos(500); // RAM access time
 }
 
 impl Intel400xClockHandling for Intel4002 {
@@ -163,7 +162,7 @@ impl Intel4002 {
         Self::new_with_variant_and_access_time(name, RamVariant::Type1, 500) // Default 500ns access time
     }
 
-        /// Create a new Intel 4002 RAM with custom access time (for testing)
+    /// Create a new Intel 4002 RAM with custom access time (for testing)
     /// Parameters: name - Component identifier, access_time_ns - Memory access time in nanoseconds
     /// Returns: New Intel4002 instance with configurable access timing
     pub fn new_with_access_time(name: String, access_time_ns: u64) -> Self {
@@ -173,7 +172,11 @@ impl Intel4002 {
     /// Create a new Intel 4002 RAM with specified variant and access time
     /// Parameters: name - Component identifier, variant - RAM variant (Type1 or Type2), access_time_ns - Memory access time in nanoseconds
     /// Returns: New Intel4002 instance with configurable variant and access timing
-    pub fn new_with_variant_and_access_time(name: String, variant: RamVariant, access_time_ns: u64) -> Self {
+    pub fn new_with_variant_and_access_time(
+        name: String,
+        variant: RamVariant,
+        access_time_ns: u64,
+    ) -> Self {
         // Intel 4002 pinout (based on MCS-4 architecture):
         // - 4 data pins (D0-D3) for multiplexed address/data
         // - 4 output port pins (O0-O3)
@@ -186,28 +189,28 @@ impl Intel4002 {
         // - P0: RAM chip select (must be HIGH for RAM access)
         // - RESET: Clears internal state
         let pin_names = vec![
-            "D0", "D1", "D2", "D3",    // Data/Address pins
+            "D0", "D1", "D2", "D3", // Data/Address pins
             "O0", "O1", "O2", "O3",    // Output port pins
-            "SYNC",                    // Sync signal
-            "CM",                      // ROM Chip Select
-            "P0",                      // RAM Chip Select
-            "RESET",                   // Reset
-            "PHI1",                    // Clock phase 1
-            "PHI2",                    // Clock phase 2
+            "SYNC",  // Sync signal
+            "CM",    // ROM Chip Select
+            "P0",    // RAM Chip Select
+            "RESET", // Reset
+            "PHI1",  // Clock phase 1
+            "PHI2",  // Clock phase 2
         ];
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
 
-                Intel4002 {
+        Intel4002 {
             base: BaseComponent::new(name, pins),
             variant,
-            memory: [0u8; 80],  // 80 nibbles = 4 banks × 20 nibbles each
+            memory: [0u8; 80], // 80 nibbles = 4 banks × 20 nibbles each
             last_address: 0,
             access_time: Duration::from_nanos(access_time_ns),
             address_latch_time: None,
             output_ports: [0u8; 4],
             input_latch: 0,
-            status_characters: [0u8; 4],  // 4 separate status character latches
+            status_characters: [0u8; 4], // 4 separate status character latches
             bank_select: 0,
             prev_phi1: PinValue::Low,
             prev_phi2: PinValue::Low,
@@ -312,7 +315,8 @@ impl Intel4002 {
         for i in 0..4 {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(format!("{}_DATA", self.base.name())), PinValue::HighZ);
+                    pin_guard
+                        .set_driver(Some(format!("{}_DATA", self.base.name())), PinValue::HighZ);
                 }
             }
         }
@@ -324,12 +328,14 @@ impl Intel4002 {
         for port in 0..4 {
             if let Ok(pin) = self.base.get_pin(&format!("O{}", port)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(format!("{}_OUTPUT", self.base.name())), PinValue::HighZ);
+                    pin_guard.set_driver(
+                        Some(format!("{}_OUTPUT", self.base.name())),
+                        PinValue::HighZ,
+                    );
                 }
             }
         }
     }
-
 
     /// Read the two-phase clock pins from CPU
     /// Returns: (PHI1_value, PHI2_value)
@@ -356,11 +362,6 @@ impl Intel4002 {
         };
 
         (phi1, phi2)
-    }
-
-    fn is_phi1_rising_edge(&self) -> bool {
-        let (phi1, _) = self.read_clock_pins();
-        phi1 == PinValue::High && self.prev_phi1 == PinValue::Low
     }
 
     fn is_phi1_falling_edge(&self) -> bool {
@@ -436,10 +437,10 @@ impl Intel4002 {
     fn handle_reset(&mut self) {
         if Intel400xResetHandling::handle_reset(self, "RESET") {
             // Hardware reset - clear all registers specific to Intel4002
-            self.memory = [0u8; 80];  // Clear 80 nibbles
+            self.memory = [0u8; 80]; // Clear 80 nibbles
             self.output_ports = [0u8; 4];
             self.input_latch = 0;
-            self.status_characters = [0u8; 4];  // Clear 4 status character latches
+            self.status_characters = [0u8; 4]; // Clear 4 status character latches
             self.bank_select = 0;
 
             // Reset all state machines using common functionality
@@ -464,7 +465,7 @@ impl Intel4002 {
     fn assemble_full_address(&mut self) {
         if let (Some(high), Some(low)) = (self.address_high_nibble, self.address_low_nibble) {
             // Assemble 8-bit address: (high << 4) | low
-            self.last_address = ((high as u8) << 4) | (low as u8);
+            self.last_address = (high << 4) | low;
             self.full_address_ready = true;
             self.address_latch_time = Some(Instant::now());
 
@@ -482,18 +483,18 @@ impl Intel4002 {
         // The 4002 uses the high nibble of the address for bank selection
         // and the low nibble for within-bank addressing
         // Each bank has 20 nibbles (0-19), not 16
-        let bank = (address_low >> 4) & 0x03;  // 2-bit bank from high nibble
-        let ram_address = (bank * 20) + (address_low & 0x0F);  // 20 nibbles per bank
+        let bank = (address_low >> 4) & 0x03; // 2-bit bank from high nibble
+        let ram_address = (bank * 20) + (address_low & 0x0F); // 20 nibbles per bank
 
         // Status characters are separate latches, not part of RAM
         if self.is_status_character_instruction(instruction) {
             // Status characters are separate from RAM - return special address
-            return (bank, 0xFF);  // Special marker for status character access
+            return (bank, 0xFF); // Special marker for status character access
         }
 
         // Output ports are also separate from RAM (addresses 0x14-0x17)
         if address_low >= 0x14 && address_low <= 0x17 {
-            return (bank, 0xFF);  // Special marker for output port access
+            return (bank, 0xFF); // Special marker for output port access
         }
 
         (bank, ram_address)
@@ -833,9 +834,9 @@ impl Intel4002 {
 
     /// Handle instruction cycle synchronization
     fn handle_instruction_cycle(&mut self) {
-        let (sync, _cm, p0, _) = self.read_control_pins();
+        let (sync, _cm, _p0, _) = self.read_control_pins();
 
-        if sync && self.is_phi1_rising_edge() {
+        if sync && self.is_phi1_rising_edge(self.prev_phi1) {
             // Start of new instruction cycle
             self.instruction_phase = true;
             self.current_instruction = self.read_data_bus();
@@ -1071,7 +1072,7 @@ impl Intel4002 {
 
     /// Clear all RAM to zero
     pub fn clear_ram(&mut self) {
-        self.memory = [0u8; 80];  // Clear 80 nibbles
+        self.memory = [0u8; 80]; // Clear 80 nibbles
     }
 
     /// Get all RAM data for a specific bank
@@ -1079,7 +1080,7 @@ impl Intel4002 {
     /// Returns: Vector of 20 nibbles for the bank (4 banks × 20 nibbles = 80 total)
     pub fn get_ram_bank(&self, bank: u8) -> Vec<u8> {
         let bank = (bank & 0x03) as usize;
-        let start = bank * 20;  // 20 nibbles per bank
+        let start = bank * 20; // 20 nibbles per bank
         let end = start + 20;
 
         if end <= self.memory.len() {
@@ -1094,21 +1095,22 @@ impl Intel4002 {
     /// Debug function to log state transitions for troubleshooting
     /// Parameters: test_name - Name of the test for context
     pub fn debug_state_transitions(&self, test_name: &str) {
-        println!("{} - State: {:?}, Bank: {}, High: {:?}, Low: {:?}, Address: 0x{:x}, Ready: {}",
-                 test_name, self.ram_state, self.bank_select, self.address_high_nibble,
-                 self.address_low_nibble, self.last_address, self.full_address_ready);
+        println!(
+            "{} - State: {:?}, Bank: {}, High: {:?}, Low: {:?}, Address: 0x{:x}, Ready: {}",
+            test_name,
+            self.ram_state,
+            self.bank_select,
+            self.address_high_nibble,
+            self.address_low_nibble,
+            self.last_address,
+            self.full_address_ready
+        );
     }
 
     /// Setup helper for instruction testing
     pub fn setup_instruction_test(&mut self, instruction: u8) {
         self.current_instruction = instruction;
         self.instruction_phase = true;
-    }
-
-    /// Tri-state all outputs (comprehensive tri-state)
-    fn tri_state_all_outputs(&self) {
-        self.tri_state_data_bus();
-        self.tri_state_output_ports();
     }
 }
 
@@ -1182,7 +1184,7 @@ mod tests {
         let mut ram = Intel4002::new("RAM_4002".to_string());
 
         // Write test data to different banks
-        ram.write_ram(0, 0x01).unwrap();  // Bank 0, address 0
+        ram.write_ram(0, 0x01).unwrap(); // Bank 0, address 0
         ram.write_ram(20, 0x02).unwrap(); // Bank 1, address 0
         ram.write_ram(40, 0x03).unwrap(); // Bank 2, address 0
 
@@ -1272,9 +1274,15 @@ mod tests {
         }
 
         // High nibble
-        phi1_pin.lock().unwrap().set_driver(Some("TEST".into()), PinValue::High);
+        phi1_pin
+            .lock()
+            .unwrap()
+            .set_driver(Some("TEST".into()), PinValue::High);
         ram.update(); // rising edge -> latch high nibble
-        phi1_pin.lock().unwrap().set_driver(Some("TEST".into()), PinValue::Low);
+        phi1_pin
+            .lock()
+            .unwrap()
+            .set_driver(Some("TEST".into()), PinValue::Low);
         ram.update(); // falling edge
 
         // Should have transitioned to AddressPhase
@@ -1294,9 +1302,15 @@ mod tests {
         }
 
         // Low nibble
-        phi1_pin.lock().unwrap().set_driver(Some("TEST".into()), PinValue::High);
+        phi1_pin
+            .lock()
+            .unwrap()
+            .set_driver(Some("TEST".into()), PinValue::High);
         ram.update(); // rising edge -> latch low nibble
-        phi1_pin.lock().unwrap().set_driver(Some("TEST".into()), PinValue::Low);
+        phi1_pin
+            .lock()
+            .unwrap()
+            .set_driver(Some("TEST".into()), PinValue::Low);
         ram.update(); // falling edge
 
         // Should have assembled full address and transitioned to WaitLatency
@@ -1446,13 +1460,13 @@ mod tests {
         assert_eq!(ram.read_ram(4).unwrap(), 0x05);
 
         // Test overflow
-        let large_data = vec![0u8; 81];  // More than 80 nibbles
+        let large_data = vec![0u8; 81]; // More than 80 nibbles
         assert!(ram.initialize_ram(&large_data).is_err());
     }
 
     #[test]
     fn test_ram_state_transitions() {
-        let mut ram = Intel4002::new_with_access_time("RAM_4002".to_string(), 1);
+        let ram = Intel4002::new_with_access_time("RAM_4002".to_string(), 1);
 
         // Initially should be in idle state
         assert_eq!(ram.ram_state, RamState::Idle);
@@ -1500,8 +1514,8 @@ mod tests {
 
         // SRC instruction sets up output port addressing
         ram.setup_instruction_test(0x25); // SRC with specific address
-        // Verify output port addressing is set up correctly
-        // This would require more complex setup in a real implementation
+                                          // Verify output port addressing is set up correctly
+                                          // This would require more complex setup in a real implementation
     }
 
     #[test]

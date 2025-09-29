@@ -402,8 +402,7 @@ mod tests {
         //        assert!(bus.is_running());
 
         let pattern = vec![PinValue::High, PinValue::Low, PinValue::High, PinValue::Low];
-
-        //        bus.set_test_pattern(pattern);
+        bus.set_test_pattern(pattern);
         //        bus.set_pattern_interval(Duration::from_millis(10));
 
         // Give the thread a moment to start

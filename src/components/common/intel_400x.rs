@@ -3,10 +3,10 @@
 //! This module provides shared timing, clock handling, and bus operations
 //! used across all Intel 400x family components (4001, 4002, 4003, 4004).
 
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 use crate::component::{BaseComponent, Component};
 use crate::pin::{Pin, PinValue};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 // Memory operation state machine states (shared across all 400x chips)
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,15 +17,14 @@ pub enum MemoryState {
     DriveData,    // Latency elapsed, driving data on bus
 }
 
-
 /// Common timing constants for Intel 400x series
 pub struct TimingConstants;
 
 impl TimingConstants {
     pub const DEFAULT_ACCESS_TIME: Duration = Duration::from_nanos(500); // 500ns default
-    pub const FAST_ACCESS_TIME: Duration = Duration::from_nanos(200);    // 200ns for shift registers
-    pub const ADDRESS_SETUP: Duration = Duration::from_nanos(100);       // Address setup time
-    pub const DATA_VALID: Duration = Duration::from_nanos(200);          // Data valid delay
+    pub const FAST_ACCESS_TIME: Duration = Duration::from_nanos(200); // 200ns for shift registers
+    pub const ADDRESS_SETUP: Duration = Duration::from_nanos(100); // Address setup time
+    pub const DATA_VALID: Duration = Duration::from_nanos(200); // Data valid delay
 }
 
 /// Common clock edge detection and timing functionality
@@ -121,7 +120,10 @@ pub trait Intel400xDataBus {
                     } else {
                         PinValue::Low
                     };
-                    pin_guard.set_driver(Some(format!("{}_DATA", self.get_base().get_name())), pin_value);
+                    pin_guard.set_driver(
+                        Some(format!("{}_DATA", self.get_base().get_name())),
+                        pin_value,
+                    );
                 }
             }
         }
@@ -132,7 +134,10 @@ pub trait Intel400xDataBus {
         for i in 0..4 {
             if let Ok(pin) = self.get_base().get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(format!("{}_DATA", self.get_base().get_name())), PinValue::HighZ);
+                    pin_guard.set_driver(
+                        Some(format!("{}_DATA", self.get_base().get_name())),
+                        PinValue::HighZ,
+                    );
                 }
             }
         }
@@ -146,7 +151,11 @@ pub trait Intel400xAddressHandling {
     /// Assemble complete 8-bit address from high and low nibbles
     /// Hardware: Intel 4004 provides address in two 4-bit phases
     /// Format: (high_nibble << 4) | low_nibble
-    fn assemble_full_address(&self, high_nibble: Option<u8>, low_nibble: Option<u8>) -> Option<u16> {
+    fn assemble_full_address(
+        &self,
+        high_nibble: Option<u8>,
+        low_nibble: Option<u8>,
+    ) -> Option<u16> {
         if let (Some(high), Some(low)) = (high_nibble, low_nibble) {
             Some(((high as u16) << 4) | (low as u16))
         } else {
@@ -163,7 +172,7 @@ pub trait Intel400xAddressHandling {
         address_low_nibble: &mut Option<u8>,
         full_address_ready: &mut bool,
         address_latch_time: &mut Option<Instant>,
-        access_time: Duration,
+        _access_time: Duration,
     ) {
         if address_high_nibble.is_none() {
             // First cycle: latch high nibble (bits 7-4)
@@ -173,7 +182,9 @@ pub trait Intel400xAddressHandling {
             *address_low_nibble = Some(nibble);
 
             // Try to assemble full address
-            if let Some(address) = self.assemble_full_address(*address_high_nibble, *address_low_nibble) {
+            if let Some(_address) =
+                self.assemble_full_address(*address_high_nibble, *address_low_nibble)
+            {
                 *full_address_ready = true;
                 *address_latch_time = Some(Instant::now());
 
@@ -186,7 +197,11 @@ pub trait Intel400xAddressHandling {
 
     /// Handle latency timing during wait state
     /// Returns: true if latency has elapsed
-    fn handle_latency_wait(&self, address_latch_time: &Option<Instant>, access_time: Duration) -> bool {
+    fn handle_latency_wait(
+        &self,
+        address_latch_time: &Option<Instant>,
+        access_time: Duration,
+    ) -> bool {
         if let Some(latch_time) = address_latch_time {
             latch_time.elapsed() >= access_time
         } else {
@@ -214,7 +229,8 @@ pub trait Intel400xControlPins {
 
     /// Read CM-ROM pin state
     fn read_cm_rom_pin(&self) -> bool {
-        if let Ok(pin) = self.get_base().get_pin("CM") {  // Note: CM pin name varies by component
+        if let Ok(pin) = self.get_base().get_pin("CM") {
+            // Note: CM pin name varies by component
             if let Ok(pin_guard) = pin.lock() {
                 pin_guard.read() == PinValue::High
             } else {

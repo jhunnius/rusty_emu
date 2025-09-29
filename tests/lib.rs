@@ -9,11 +9,11 @@
 pub use rusty_emu;
 
 // Module declarations for test files
-mod intel_400x_tests;
-mod mocks;
-mod mock_based_tests;
-mod property_based_tests;
 mod integration_tests;
+mod intel_400x_tests;
+mod mock_based_tests;
+mod mocks;
+mod property_based_tests;
 
 // Common test utilities and helpers
 pub mod test_utils {
@@ -36,10 +36,16 @@ pub mod test_utils {
 
     /// Create a test scenario with known good values
     pub fn create_standard_test_scenario() -> crate::mocks::MockScenario {
-        let mut scenario = crate::mocks::MockScenario::new("StandardTest");
-        scenario.component.set_pin_value("SYNC", rusty_emu::pin::PinValue::High);
-        scenario.component.set_pin_value("CM", rusty_emu::pin::PinValue::High);
-        scenario.component.set_pin_value("CI", rusty_emu::pin::PinValue::Low);
+        let scenario = crate::mocks::MockScenario::new("StandardTest");
+        scenario
+            .component
+            .set_pin_value("SYNC", rusty_emu::pin::PinValue::High);
+        scenario
+            .component
+            .set_pin_value("CM", rusty_emu::pin::PinValue::High);
+        scenario
+            .component
+            .set_pin_value("CI", rusty_emu::pin::PinValue::Low);
         scenario
     }
 

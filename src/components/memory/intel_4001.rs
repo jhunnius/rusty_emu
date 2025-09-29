@@ -5,9 +5,8 @@ use std::time::{Duration, Instant};
 
 use crate::component::{BaseComponent, Component, RunnableComponent};
 use crate::components::common::intel_400x::{
-    Intel400xAddressHandling, Intel400xClockHandling, Intel400xControlPins,
-    Intel400xDataBus, Intel400xResetHandling, Intel400xTimingState,
-    MemoryState, TimingState
+    Intel400xAddressHandling, Intel400xClockHandling, Intel400xControlPins, Intel400xDataBus,
+    Intel400xResetHandling, Intel400xTimingState, MemoryState, TimingState,
 };
 use crate::pin::{Pin, PinValue};
 
@@ -48,7 +47,6 @@ enum IoMode {
     Output,        // I/O pins configured as outputs (WRM instruction)
     Bidirectional, // I/O pins bidirectional (not used in 4001)
 }
-
 
 impl Intel400xClockHandling for Intel4001 {
     fn get_base(&self) -> &BaseComponent {
@@ -396,8 +394,12 @@ impl Intel4001 {
     /// Hardware-accurate: Φ2 is when peripherals drive data, so we handle data driving
     /// Focus: Data driving operations
     fn handle_memory_data_operations(&mut self) {
-        println!("DEBUG: {} - handle_memory_data_operations: state={:?}, address_ready={}",
-                 self.base.name(), self.memory_state, self.full_address_ready);
+        println!(
+            "DEBUG: {} - handle_memory_data_operations: state={:?}, address_ready={}",
+            self.base.name(),
+            self.memory_state,
+            self.full_address_ready
+        );
         match self.memory_state {
             MemoryState::Idle => {
                 // During data phase, idle state means tri-state the bus
@@ -408,28 +410,43 @@ impl Intel4001 {
             MemoryState::AddressPhase => {
                 // Address phase should be handled by Φ1, not Φ2
                 // Tri-state bus during wrong phase
-                println!("DEBUG: {} - In AddressPhase during Φ2, tri-stating", self.base.name());
+                println!(
+                    "DEBUG: {} - In AddressPhase during Φ2, tri-stating",
+                    self.base.name()
+                );
                 self.tri_state_data_bus();
             }
 
             MemoryState::WaitLatency => {
                 // Address latched, waiting for access latency
                 // Check if latency has elapsed and we can transition to data phase
-                println!("DEBUG: {} - In WaitLatency, checking latency", self.base.name());
+                println!(
+                    "DEBUG: {} - In WaitLatency, checking latency",
+                    self.base.name()
+                );
                 self.handle_latency_wait();
                 // If we transitioned to DriveData, handle data driving
                 if self.memory_state == MemoryState::DriveData {
-                    println!("DEBUG: {} - Transitioned to DriveData, calling handle_data_driving", self.base.name());
+                    println!(
+                        "DEBUG: {} - Transitioned to DriveData, calling handle_data_driving",
+                        self.base.name()
+                    );
                     self.handle_data_driving();
                 } else {
-                    println!("DEBUG: {} - Still in WaitLatency after handle_latency_wait", self.base.name());
+                    println!(
+                        "DEBUG: {} - Still in WaitLatency after handle_latency_wait",
+                        self.base.name()
+                    );
                 }
             }
 
             MemoryState::DriveData => {
                 // Latency elapsed, drive data on bus during Φ2
                 // Data will remain on bus until Φ2 falling edge
-                println!("DEBUG: {} - In DriveData state, calling handle_data_driving", self.base.name());
+                println!(
+                    "DEBUG: {} - In DriveData state, calling handle_data_driving",
+                    self.base.name()
+                );
                 self.handle_data_driving();
             }
         }
@@ -474,7 +491,9 @@ impl Intel4001 {
         } else if self.address_low_nibble.is_none() {
             // Second cycle: latch low nibble (bits 3-0) and transition to latency wait
             self.address_low_nibble = Some(nibble);
-            if let Some(address) = self.assemble_full_address(self.address_high_nibble, self.address_low_nibble) {
+            if let Some(address) =
+                self.assemble_full_address(self.address_high_nibble, self.address_low_nibble)
+            {
                 self.last_address = address;
                 self.start_latency_wait();
             }
@@ -493,16 +512,27 @@ impl Intel4001 {
     fn handle_latency_wait(&mut self) {
         if let Some(latch_time) = self.address_latch_time {
             let elapsed = latch_time.elapsed();
-            println!("DEBUG: {} - handle_latency_wait: elapsed={:?}, access_time={:?}, ready={}",
-                     self.base.get_name(), elapsed, self.access_time, self.full_address_ready);
+            println!(
+                "DEBUG: {} - handle_latency_wait: elapsed={:?}, access_time={:?}, ready={}",
+                self.base.get_name(),
+                elapsed,
+                self.access_time,
+                self.full_address_ready
+            );
             if elapsed >= self.access_time {
                 // Latency elapsed, transition to data driving
                 // Data will be driven on next Φ2 rising edge
-                println!("DEBUG: {} - Latency elapsed, transitioning to DriveData", self.base.get_name());
+                println!(
+                    "DEBUG: {} - Latency elapsed, transitioning to DriveData",
+                    self.base.get_name()
+                );
                 self.start_data_driving();
             }
         } else {
-            println!("DEBUG: {} - handle_latency_wait: no latch_time set", self.base.get_name());
+            println!(
+                "DEBUG: {} - handle_latency_wait: no latch_time set",
+                self.base.get_name()
+            );
         }
     }
 
@@ -520,8 +550,14 @@ impl Intel4001 {
         let chip_select = self.read_cm_rom_pin();
         let io_select = self.read_reset_pin(); // Using reset pin as CI for now
 
-        println!("DEBUG: {} - handle_data_driving: SYNC={}, CM={}, CI={}, Address_Ready={}",
-                 self.base.name(), sync, chip_select, io_select, self.full_address_ready);
+        println!(
+            "DEBUG: {} - handle_data_driving: SYNC={}, CM={}, CI={}, Address_Ready={}",
+            self.base.name(),
+            sync,
+            chip_select,
+            io_select,
+            self.full_address_ready
+        );
 
         // Memory read: CM=1 (chip_select), CI=0 (!io_select), valid address
         if sync && chip_select && !io_select && self.full_address_ready {
@@ -530,12 +566,21 @@ impl Intel4001 {
             let address = self.last_address;
             if (address as usize) < self.memory.len() {
                 let data = self.memory[address as usize];
-                println!("DEBUG: {} - All conditions met, driving data 0x{:x} to address 0x{:x}", self.base.name(), data, address);
+                println!(
+                    "DEBUG: {} - All conditions met, driving data 0x{:x} to address 0x{:x}",
+                    self.base.name(),
+                    data,
+                    address
+                );
                 self.write_data_bus(data);
                 // Note: Don't call return_to_idle() here - wait for Φ2 falling edge
             } else {
                 // Invalid address, tri-state
-                println!("DEBUG: {} - Invalid address 0x{:x}, tri-stating", self.base.name(), address);
+                println!(
+                    "DEBUG: {} - Invalid address 0x{:x}, tri-stating",
+                    self.base.name(),
+                    address
+                );
                 self.tri_state_data_bus();
             }
         } else {
@@ -682,9 +727,16 @@ impl Intel4001 {
     /// Debug function to log state transitions for troubleshooting
     /// Parameters: test_name - Name of the test for context
     pub fn debug_state_transitions(&self, test_name: &str) {
-        println!("{} - State: {:?}, High: {:?}, Low: {:?}, Address: 0x{:x}, Ready: {}, Latch time: {:?}",
-                 test_name, self.memory_state, self.address_high_nibble, self.address_low_nibble,
-                 self.last_address, self.full_address_ready, self.address_latch_time);
+        println!(
+            "{} - State: {:?}, High: {:?}, Low: {:?}, Address: 0x{:x}, Ready: {}, Latch time: {:?}",
+            test_name,
+            self.memory_state,
+            self.address_high_nibble,
+            self.address_low_nibble,
+            self.last_address,
+            self.full_address_ready,
+            self.address_latch_time
+        );
     }
 }
 
@@ -886,7 +938,7 @@ mod tests {
         assert_eq!(rom.memory_state, MemoryState::WaitLatency);
 
         // Advance simulated time to exceed access_time (1ns)
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
     }
 
     #[test]
@@ -1024,7 +1076,7 @@ mod tests {
 
         // Advance simulated time to exceed access_time (1ns)
         rom.debug_state_transitions("BEFORE_SLEEP");
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
         rom.debug_state_transitions("AFTER_SLEEP");
 
         // --- Data phase ---
@@ -1049,14 +1101,20 @@ mod tests {
         // Debug: Check what data the ROM thinks it should drive
         let address = rom.last_address;
         let expected_data = rom.memory[address as usize];
-        println!("DEBUG: ROM address 0x{:x}, data at address: 0x{:x}", address, expected_data);
+        println!(
+            "DEBUG: ROM address 0x{:x}, data at address: 0x{:x}",
+            address, expected_data
+        );
 
         // Debug: Check the bit extraction logic
         let bit0 = (expected_data >> 0) & 1;
         let bit1 = (expected_data >> 1) & 1;
         let bit2 = (expected_data >> 2) & 1;
         let bit3 = (expected_data >> 3) & 1;
-        println!("DEBUG: Bit extraction - bit0: {}, bit1: {}, bit2: {}, bit3: {}", bit0, bit1, bit2, bit3);
+        println!(
+            "DEBUG: Bit extraction - bit0: {}, bit1: {}, bit2: {}, bit3: {}",
+            bit0, bit1, bit2, bit3
+        );
 
         // Debug: Check actual pin states and settlement status
         let d0_actual = d0_pin.lock().unwrap().read();
@@ -1074,10 +1132,22 @@ mod tests {
         let d2_settled = d2_pin.lock().unwrap().is_settled();
         let d3_settled = d3_pin.lock().unwrap().is_settled();
 
-        println!("DEBUG: D0 actual: {:?} (bit 0: {}), immediate: {:?}, settled: {}", d0_actual, bit0, d0_immediate, d0_settled);
-        println!("DEBUG: D1 actual: {:?} (bit 1: {}), immediate: {:?}, settled: {}", d1_actual, bit1, d1_immediate, d1_settled);
-        println!("DEBUG: D2 actual: {:?} (bit 2: {}), immediate: {:?}, settled: {}", d2_actual, bit2, d2_immediate, d2_settled);
-        println!("DEBUG: D3 actual: {:?} (bit 3: {}), immediate: {:?}, settled: {}", d3_actual, bit3, d3_immediate, d3_settled);
+        println!(
+            "DEBUG: D0 actual: {:?} (bit 0: {}), immediate: {:?}, settled: {}",
+            d0_actual, bit0, d0_immediate, d0_settled
+        );
+        println!(
+            "DEBUG: D1 actual: {:?} (bit 1: {}), immediate: {:?}, settled: {}",
+            d1_actual, bit1, d1_immediate, d1_settled
+        );
+        println!(
+            "DEBUG: D2 actual: {:?} (bit 2: {}), immediate: {:?}, settled: {}",
+            d2_actual, bit2, d2_immediate, d2_settled
+        );
+        println!(
+            "DEBUG: D3 actual: {:?} (bit 3: {}), immediate: {:?}, settled: {}",
+            d3_actual, bit3, d3_immediate, d3_settled
+        );
 
         // Debug: Check actual pin states immediately after data driving
         let d0_actual = d0_pin.lock().unwrap().read();
@@ -1085,7 +1155,10 @@ mod tests {
         let d2_actual = d2_pin.lock().unwrap().read();
         let d3_actual = d3_pin.lock().unwrap().read();
 
-        println!("DEBUG: After data driving - D0: {:?}, D1: {:?}, D2: {:?}, D3: {:?}", d0_actual, d1_actual, d2_actual, d3_actual);
+        println!(
+            "DEBUG: After data driving - D0: {:?}, D1: {:?}, D2: {:?}, D3: {:?}",
+            d0_actual, d1_actual, d2_actual, d3_actual
+        );
 
         // Debug: Check what the ROM thinks it should be driving
         let expected_data = 0x12;
@@ -1093,14 +1166,17 @@ mod tests {
         let bit1 = (expected_data >> 1) & 1;
         let bit2 = (expected_data >> 2) & 1;
         let bit3 = (expected_data >> 3) & 1;
-        println!("DEBUG: Expected bits - bit0: {}, bit1: {}, bit2: {}, bit3: {}", bit0, bit1, bit2, bit3);
+        println!(
+            "DEBUG: Expected bits - bit0: {}, bit1: {}, bit2: {}, bit3: {}",
+            bit0, bit1, bit2, bit3
+        );
 
         // Verify data is driven on bus while Φ2 is high: 0x12 = 0001 0010
         // 0x12 = 18 decimal = 0001 0010 binary
         // For 4-bit data bus: D3=0, D2=0, D1=1, D0=0
 
         // Small delay to allow pin state to settle
-        std::thread::sleep(Duration::from_micros(1));
+        thread::sleep(Duration::from_micros(1));
 
         assert_eq!(d0_pin.lock().unwrap().read(), PinValue::Low); // Bit 0 = 0
         assert_eq!(d1_pin.lock().unwrap().read(), PinValue::High); // Bit 1 = 1
@@ -1198,7 +1274,7 @@ mod tests {
         rom.update(); // falling edge
 
         // Advance simulated time to exceed access_time (1ns)
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
 
         // --- Data phase ---
         phi2_pin
@@ -1307,7 +1383,7 @@ mod tests {
         rom.update(); // rising edge for low nibble
 
         // Advance simulated time to exceed access_time (1ns)
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
 
         // Data phase
         phi2_pin
@@ -1383,7 +1459,7 @@ mod tests {
         rom.update(); // rising edge for low nibble
 
         // Advance simulated time to exceed access_time (1ns)
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
 
         // Data phase
         phi2_pin
@@ -1419,10 +1495,6 @@ mod tests {
         let sync_pin = rom.get_pin("SYNC").unwrap();
         let cm_pin = rom.get_pin("CM").unwrap();
         let ci_pin = rom.get_pin("CI").unwrap();
-        let d0_pin = rom.get_pin("D0").unwrap();
-        let d1_pin = rom.get_pin("D1").unwrap();
-        let d2_pin = rom.get_pin("D2").unwrap();
-        let d3_pin = rom.get_pin("D3").unwrap();
 
         // Set up memory read operation: SYNC=1, chip_select=1, io_select=0 (memory access)
         {
@@ -1740,7 +1812,7 @@ mod tests {
         rom.update(); // rising edge for low nibble
 
         // Advance simulated time to exceed access_time (1ns)
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
 
         // Data phase
         phi2_pin
@@ -1815,7 +1887,7 @@ mod tests {
         rom.update(); // rising edge for low nibble
 
         // Advance simulated time to exceed access_time (1ns)
-        std::thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_nanos(2));
 
         // Data phase
         phi2_pin

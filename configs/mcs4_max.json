@@ -1,0 +1,167 @@
+{
+  "name": "IntelMcs4Max",
+  "description": "Fig.1 MCS-4 System with 16 ROMs and 16 RAMs",
+  "version": "1.0",
+  "metadata": {
+    "configuration": "fig1",
+    "rom_count": 16,
+    "ram_count": 16,
+    "shift_register_count": 3,
+    "cpu_speed": 750000,
+    "architecture": "mcs4_max"
+  },
+  "components": {
+    "cpu": {
+      "single": {
+        "component_type": "intel_4004",
+        "name": "CPU_4004",
+        "properties": {
+          "clock_speed": 750000
+        }
+      }
+    },
+    "clock": {
+      "single": {
+        "component_type": "generic_clock",
+        "name": "SYSTEM_CLOCK",
+        "properties": {
+          "frequency": 750000
+        }
+      }
+    },
+    "roms": {
+      "array": {
+        "component_type": "intel_4001",
+        "count": 16,
+        "naming_pattern": "ROM_4001_{:02}",
+        "properties": {}
+      }
+    },
+    "rams": {
+      "array": {
+        "component_type": "intel_4002",
+        "count": 16,
+        "naming_pattern": "RAM_4002_{:02}",
+        "properties": {
+          "variant": "Type1",
+          "access_time": 500
+        },
+        "overrides": {
+          "03": {
+            "variant": "Type2"
+          }
+        }
+      }
+    },
+    "shift_registers": {
+      "array": {
+        "component_type": "intel_4003",
+        "count": 3,
+        "names": [
+          "SHIFT_4003_ROM15",
+          "SHIFT_4003_RAM3_1",
+          "SHIFT_4003_RAM3_2"
+        ],
+        "properties": {}
+      }
+    }
+  },
+  "connections": {
+    "clock_signals": {
+      "connection_type": "clock",
+      "source": {
+        "component": "clock",
+        "pin": "CLK"
+      },
+      "targets": [
+        {"component": "cpu", "pin": "PHI1"},
+        {"component": "cpu", "pin": "PHI2"}
+      ]
+    },
+    "rom_clock_signals": {
+      "connection_type": "clock_fanout",
+      "source": {
+        "component": "clock",
+        "pin": "CLK"
+      },
+      "target_pattern": {
+        "component_pattern": "ROM_4001_{:02}",
+        "pins": ["PHI1", "PHI2"]
+      }
+    },
+    "ram_clock_signals": {
+      "connection_type": "clock_fanout",
+      "source": {
+        "component": "clock",
+        "pin": "CLK"
+      },
+      "target_pattern": {
+        "component_pattern": "RAM_4002_{:02}",
+        "pins": ["PHI1", "PHI2"]
+      }
+    },
+    "shift_clock_signals": {
+      "connection_type": "clock_fanout",
+      "source": {
+        "component": "clock",
+        "pin": "CLK"
+      },
+      "target_pattern": {
+        "component_pattern": "SHIFT_4003_ROM15",
+        "pins": ["PHI1", "PHI2"]
+      }
+    },
+    "shift_ram3_clock_signals": {
+      "connection_type": "clock_fanout",
+      "source": {
+        "component": "clock",
+        "pin": "CLK"
+      },
+      "targets": [
+        {"component": "SHIFT_4003_RAM3_1", "pin": "PHI1"},
+        {"component": "SHIFT_4003_RAM3_1", "pin": "PHI2"},
+        {"component": "SHIFT_4003_RAM3_2", "pin": "PHI1"},
+        {"component": "SHIFT_4003_RAM3_2", "pin": "PHI2"}
+      ]
+    },
+    "rom15_shift_register": {
+      "connection_type": "io_chain",
+      "source_component": "ROM_4001_15",
+      "source_pins": ["IO0", "IO1", "IO2", "IO3"],
+      "target_component": "SHIFT_4003_ROM15",
+      "target_pins": ["D0", "D1", "D2", "D3"]
+    },
+    "ram3_shift_chain": {
+      "connection_type": "serial_chain",
+      "stages": [
+        {
+          "source_component": "RAM_4002_03",
+          "source_pins": ["O0", "O1", "O2", "O3"],
+          "target_component": "SHIFT_4003_RAM3_1",
+          "target_pins": ["D0", "D1", "D2", "D3"]
+        },
+        {
+          "source_component": "SHIFT_4003_RAM3_1",
+          "source_pins": ["O0", "O1", "O2", "O3"],
+          "target_component": "SHIFT_4003_RAM3_2",
+          "target_pins": ["D0", "D1", "D2", "D3"]
+        }
+      ]
+    }
+  },
+  "layout": {
+    "grid_size": [20, 20],
+    "positions": {
+      "cpu": [1, 1],
+      "clock": [0, 0],
+      "ROM_4001_00": [2, 0],
+      "ROM_4001_15": [17, 0],
+      "RAM_4002_00": [2, 2],
+      "RAM_4002_03": [5, 2],
+      "RAM_4002_15": [17, 2],
+      "SHIFT_4003_ROM15": [18, 0],
+      "SHIFT_4003_RAM3_1": [6, 2],
+      "SHIFT_4003_RAM3_2": [7, 2]
+    }
+  }
+}

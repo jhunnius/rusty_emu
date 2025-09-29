@@ -3,10 +3,10 @@
 //! These tests use property-based testing to verify the correctness
 //! of state machine behavior, timing properties, and system invariants.
 
-use rusty_emu::components::common::intel_400x::*;
-use rusty_emu::pin::PinValue;
 use crate::mocks::*;
 use proptest::prelude::*;
+use rusty_emu::components::common::intel_400x::*;
+use rusty_emu::pin::PinValue;
 use std::time::{Duration, Instant};
 
 #[cfg(test)]
@@ -100,7 +100,7 @@ mod state_machine_properties {
             (0x01, 0x23, 0x0123),
         ];
 
-        for (high, low, expected) in test_cases {
+        for (high, low, _expected) in test_cases {
             scenario.component.set_address_high_nibble(Some(high));
             scenario.component.set_address_low_nibble(Some(low));
             scenario.component.set_full_address_ready(true);
@@ -176,7 +176,7 @@ mod state_machine_properties {
 
             // Test duration properties
             prop_assert!(duration.as_nanos() >= 0);
-            prop_assert_eq!(duration.as_nanos(), duration_nanos as u128);
+            prop_assert_eq!(duration.as_nanos(), duration_nanos);
 
             // Test that our timing constants are reasonable
             prop_assert!(TimingConstants::DEFAULT_ACCESS_TIME > Duration::from_nanos(0));
@@ -222,7 +222,10 @@ mod timing_invariant_tests {
             if idle {
                 assert_eq!(active_count, 0, "Idle state should not have active flags");
             } else {
-                assert!(active_count > 0, "Non-idle state should have at least one active flag");
+                assert!(
+                    active_count > 0,
+                    "Non-idle state should have at least one active flag"
+                );
             }
         }
     }
@@ -265,11 +268,7 @@ mod timing_invariant_tests {
         let scenario = MockScenario::new("TestPinConsistency");
 
         // Test that pin states are consistent
-        let test_values = vec![
-            PinValue::Low,
-            PinValue::High,
-            PinValue::HighZ,
-        ];
+        let test_values = vec![PinValue::Low, PinValue::High, PinValue::HighZ];
 
         for value in test_values {
             scenario.component.set_pin_value("D0", value);
@@ -278,7 +277,7 @@ mod timing_invariant_tests {
             scenario.component.set_pin_value("PHI1", value);
             assert_eq!(scenario.component.get_pin_value("PHI1"), Some(value));
 
-            scenario.set_pin_value("SYNC", value);
+            scenario.component.set_pin_value("SYNC", value);
             assert_eq!(scenario.component.get_pin_value("SYNC"), Some(value));
         }
     }
@@ -389,31 +388,39 @@ mod concurrency_safety_tests {
         let scenario = Arc::new(MockScenario::new("TestThreadSafety"));
 
         // Test that our mock can handle concurrent access patterns
-        let handles: Vec<_> = (0..4).map(|i| {
-            let scenario_clone: std::sync::Arc<MockScenario> = Arc::clone(&scenario);
-            thread::spawn(move || {
-                // Each thread tests different aspects
-                match i {
-                    0 => {
-                        // Note: This would need proper Arc<Mutex<>> handling for thread safety
-                        // For now, we'll skip the mutable operation in this test
-                        // Note: Thread safety testing would require proper Arc<Mutex<>> handling
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let scenario_clone: Arc<MockScenario> = Arc::clone(&scenario);
+                thread::spawn(move || {
+                    // Each thread tests different aspects
+                    match i {
+                        0 => {
+                            // Note: This would need proper Arc<Mutex<>> handling for thread safety
+                            // For now, we'll skip the mutable operation in this test
+                            // Note: Thread safety testing would require proper Arc<Mutex<>> handling
+                        }
+                        1 => {
+                            scenario_clone.component.set_pin_value("D0", PinValue::High);
+                            assert_eq!(
+                                scenario_clone.component.get_pin_value("D0"),
+                                Some(PinValue::High)
+                            );
+                        }
+                        2 => {
+                            scenario_clone.component.set_address_high_nibble(Some(0x12));
+                            assert_eq!(
+                                scenario_clone.component.get_address_high_nibble(),
+                                Some(0x12)
+                            );
+                        }
+                        3 => {
+                            scenario_clone.advance_time(Duration::from_nanos(100));
+                        }
+                        _ => unreachable!(),
                     }
-                    1 => {
-                        scenario_clone.component.set_pin_value("D0", PinValue::High);
-                        assert_eq!(scenario_clone.component.get_pin_value("D0"), Some(PinValue::High));
-                    }
-                    2 => {
-                        scenario_clone.component.set_address_high_nibble(Some(0x12));
-                        assert_eq!(scenario_clone.component.get_address_high_nibble(), Some(0x12));
-                    }
-                    3 => {
-                        scenario_clone.advance_time(Duration::from_nanos(100));
-                    }
-                    _ => unreachable!(),
-                }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all threads to complete
         for handle in handles {

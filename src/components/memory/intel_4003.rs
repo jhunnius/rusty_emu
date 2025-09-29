@@ -21,14 +21,14 @@ use crate::pin::{Pin, PinValue};
 /// - Output behavior matches 4001/4002 I/O persistence model
 pub struct Intel4003 {
     base: BaseComponent,
-    shift_register: [u8; 10],     // 10-bit shift register (stored as 10 bytes for simplicity)
-    output_latch: [u8; 10],       // 10-bit output latch for parallel output
-    serial_input: u8,             // Serial input data (4-bit)
-    access_time: Duration,        // Shift register access latency (200ns typical)
+    shift_register: [u8; 10], // 10-bit shift register (stored as 10 bytes for simplicity)
+    output_latch: [u8; 10],   // 10-bit output latch for parallel output
+    serial_input: u8,         // Serial input data (4-bit)
+    access_time: Duration,    // Shift register access latency (200ns typical)
 
     // Clock edge detection
-    prev_phi1: PinValue,          // Previous Φ1 clock state for edge detection
-    prev_phi2: PinValue,          // Previous Φ2 clock state for edge detection
+    prev_phi1: PinValue, // Previous Φ1 clock state for edge detection
+    prev_phi2: PinValue, // Previous Φ2 clock state for edge detection
 
     // Two-phase addressing for 8-bit address
     address_high_nibble: Option<u8>, // High nibble of 8-bit address
@@ -36,7 +36,7 @@ pub struct Intel4003 {
     full_address_ready: bool,        // Whether complete address is assembled
 
     // Shift register operation state machine
-    shift_state: ShiftState,      // Current state of shift operation
+    shift_state: ShiftState,             // Current state of shift operation
     address_latch_time: Option<Instant>, // Timestamp when address was latched
 }
 
@@ -74,21 +74,21 @@ impl Intel4003 {
         // - CM: Chip select (must be HIGH for shift register access)
         // - RESET: Clears internal state
         let pin_names = vec![
-            "D0", "D1", "D2", "D3",    // Data/Address pins
-            "O0", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9", // 10 output pins
-            "SYNC",                    // Sync signal
-            "CM",                      // Chip Select
-            "RESET",                   // Reset
-            "PHI1",                    // Clock phase 1
-            "PHI2",                    // Clock phase 2
+            "D0", "D1", "D2", "D3", // Data/Address pins
+            "O0", "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9",    // 10 output pins
+            "SYNC",  // Sync signal
+            "CM",    // Chip Select
+            "RESET", // Reset
+            "PHI1",  // Clock phase 1
+            "PHI2",  // Clock phase 2
         ];
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
 
         Intel4003 {
             base: BaseComponent::new(name, pins),
-            shift_register: [0u8; 10],  // 10-bit shift register
-            output_latch: [0u8; 10],    // 10-bit output latch
+            shift_register: [0u8; 10], // 10-bit shift register
+            output_latch: [0u8; 10],   // 10-bit output latch
             serial_input: 0,
             access_time: Duration::from_nanos(access_time_ns),
 
@@ -167,7 +167,8 @@ impl Intel4003 {
         for i in 0..4 {
             if let Ok(pin) = self.base.get_pin(&format!("D{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(format!("{}_DATA", self.base.name())), PinValue::HighZ);
+                    pin_guard
+                        .set_driver(Some(format!("{}_DATA", self.base.name())), PinValue::HighZ);
                 }
             }
         }
@@ -178,7 +179,10 @@ impl Intel4003 {
         for i in 0..10 {
             if let Ok(pin) = self.base.get_pin(&format!("O{}", i)) {
                 if let Ok(mut pin_guard) = pin.lock() {
-                    pin_guard.set_driver(Some(format!("{}_OUTPUT", self.base.name())), PinValue::HighZ);
+                    pin_guard.set_driver(
+                        Some(format!("{}_OUTPUT", self.base.name())),
+                        PinValue::HighZ,
+                    );
                 }
             }
         }
@@ -274,7 +278,7 @@ impl Intel4003 {
 
     /// Assemble complete 8-bit address from high and low nibbles
     fn assemble_full_address(&mut self) {
-        if let (Some(high), Some(low)) = (self.address_high_nibble, self.address_low_nibble) {
+        if let (Some(_high), Some(_low)) = (self.address_high_nibble, self.address_low_nibble) {
             // Assemble 8-bit address: (high << 4) | low
             self.full_address_ready = true;
             self.address_latch_time = Some(Instant::now());
@@ -400,29 +404,41 @@ impl Intel4003 {
         if sync && chip_select && self.full_address_ready {
             // Read serial input data from data bus
             let serial_data = self.read_data_bus();
-            println!("DEBUG: 4003 shift operation - serial_data = 0x{:x}", serial_data);
+            println!(
+                "DEBUG: 4003 shift operation - serial_data = 0x{:x}",
+                serial_data
+            );
 
             // Shift in the new bits (serial input)
             // For 4003, we shift in 4 bits at a time
             // First, shift existing bits right by 4 positions
             for j in (4..10).rev() {
-                self.shift_register[j] = self.shift_register[j-4];
+                self.shift_register[j] = self.shift_register[j - 4];
             }
 
             // Then insert the 4 new bits into positions 0-3
             for i in 0..4 {
                 let bit = (serial_data >> i) & 1;
                 self.shift_register[i] = bit;
-                println!("DEBUG: 4003 shift step {} - inserted bit {} at position {}", i, bit, i);
+                println!(
+                    "DEBUG: 4003 shift step {} - inserted bit {} at position {}",
+                    i, bit, i
+                );
             }
 
             // Update output latch with new shift register contents
             self.output_latch.copy_from_slice(&self.shift_register);
             self.update_output_pins();
 
-            println!("DEBUG: 4003 shift register after operation: {:?}", self.shift_register);
+            println!(
+                "DEBUG: 4003 shift register after operation: {:?}",
+                self.shift_register
+            );
             let (high, low) = self.get_shift_register();
-            println!("DEBUG: 4003 get_shift_register() returns high=0x{:x}, low=0x{:x}", high, low);
+            println!(
+                "DEBUG: 4003 get_shift_register() returns high=0x{:x}, low=0x{:x}",
+                high, low
+            );
 
             self.shift_state = ShiftState::OutputData;
         } else {
@@ -435,7 +451,6 @@ impl Intel4003 {
         // Output operation - parallel data is already available on output pins
         // This state maintains the output until next operation
     }
-
 
     /// Get the current shift register value
     /// Returns: 10-bit value as a tuple (high_byte, low_2_bits)
@@ -593,9 +608,9 @@ mod tests {
             let mut d2_guard = d2_pin.lock().unwrap();
             let mut d3_guard = d3_pin.lock().unwrap();
             d0_guard.set_driver(Some("TEST".to_string()), PinValue::High); // Bit 0 = 1
-            d1_guard.set_driver(Some("TEST".to_string()), PinValue::Low);  // Bit 1 = 0
+            d1_guard.set_driver(Some("TEST".to_string()), PinValue::Low); // Bit 1 = 0
             d2_guard.set_driver(Some("TEST".to_string()), PinValue::High); // Bit 2 = 1
-            d3_guard.set_driver(Some("TEST".to_string()), PinValue::Low);  // Bit 3 = 0
+            d3_guard.set_driver(Some("TEST".to_string()), PinValue::Low); // Bit 3 = 0
         }
 
         // Set control pins for shift operation
@@ -613,7 +628,10 @@ mod tests {
 
         // Verify shift operation occurred
         let (high, low) = sr.get_shift_register();
-        println!("DEBUG: After shift operation - high=0x{:x}, low=0x{:x}", high, low);
+        println!(
+            "DEBUG: After shift operation - high=0x{:x}, low=0x{:x}",
+            high, low
+        );
         println!("DEBUG: Shift register contents: {:?}", sr.shift_register);
 
         // The shift register should now contain the shifted data
@@ -623,7 +641,7 @@ mod tests {
         // high byte: 01010101 (0x55) - this is correct, the first 4 bits are 0101 (0x05)
         // low byte: 00000001 (0x01) - this is the remaining 2 bits from the original pattern
         assert_eq!(high, 0x55); // First 8 bits should be 01010101
-        assert_eq!(low, 0x01);  // Lower 2 bits should be 01
+        assert_eq!(low, 0x01); // Lower 2 bits should be 01
     }
 
     #[test]

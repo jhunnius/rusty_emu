@@ -1,17 +1,20 @@
 # Intel 400x Common Functionality Tests
 
-This directory contains comprehensive tests for the `intel_400x.rs` common functionality module, which provides shared timing, clock handling, and bus operations for Intel 400x series chips.
+This directory contains comprehensive tests for the `intel_400x.rs` common functionality module, which provides shared
+timing, clock handling, and bus operations for Intel 400x series chips.
 
 ## Test Organization
 
 ### Unit Tests (in implementation files)
+
 - **Intel4001 unit tests**: Located in `src/components/memory/intel_4001.rs`
-  - Component creation and configuration
-  - Memory operations and data loading
-  - State management and transitions
-  - Error handling and edge cases
+    - Component creation and configuration
+    - Memory operations and data loading
+    - State management and transitions
+    - Error handling and edge cases
 
 ### Integration Tests (in tests/ directory)
+
 1. **`intel_400x_tests.rs`** - Tests for the common intel_400x functionality
 2. **`mocks.rs`** - Mock implementations for testing hardware interactions
 3. **`mock_based_tests.rs`** - Tests using mocks for data bus and pin operations
@@ -23,6 +26,7 @@ This directory contains comprehensive tests for the `intel_400x.rs` common funct
 ### Test Categories
 
 #### 1. Common Functionality Tests (`intel_400x_tests.rs`)
+
 - **Timing Constants**: Verify access times and setup requirements
 - **Address Assembly**: Test nibble-to-address conversion logic
 - **State Machine**: Test state transition logic and queries
@@ -31,6 +35,7 @@ This directory contains comprehensive tests for the `intel_400x.rs` common funct
 - **Utility Functions**: Test helper functions and pin operations
 
 #### 2. Mock-Based Tests (`mock_based_tests.rs`)
+
 - **Data Bus Operations**: Test read/write operations with controlled inputs
 - **Clock Handling**: Test clock pin interactions and edge scenarios
 - **Control Pins**: Test SYNC, CM, and RESET pin behavior
@@ -38,6 +43,7 @@ This directory contains comprehensive tests for the `intel_400x.rs` common funct
 - **Error Handling**: Test behavior with invalid inputs
 
 #### 3. Property-Based Tests (`property_based_tests.rs`)
+
 - **State Machine Invariants**: Verify state consistency properties
 - **Type Conversions**: Test enum conversion roundtrips
 - **Address Properties**: Test address assembly properties
@@ -45,12 +51,14 @@ This directory contains comprehensive tests for the `intel_400x.rs` common funct
 - **Concurrency Safety**: Test thread-safe behavior
 
 #### 4. Integration Tests (`integration_tests.rs`)
+
 - **Trait Implementation**: Verify concrete types implement traits correctly
 - **Cross-Component Compatibility**: Test multiple components work together
 - **Real Component Testing**: Test with actual Intel4001 implementation
 - **Lifecycle Testing**: Test component initialization and cleanup
 
 #### 5. Working Tests (`working_test.rs`)
+
 - **Core Functionality**: Demonstrates that the intel_400x module is testable
 - **Basic Operations**: Tests fundamental features that work correctly
 - **Regression Prevention**: Ensures core functionality remains stable
@@ -58,11 +66,13 @@ This directory contains comprehensive tests for the `intel_400x.rs` common funct
 ## Running the Tests
 
 ### Run All Tests
+
 ```bash
 cargo test
 ```
 
 ### Run Specific Test Categories
+
 ```bash
 # Unit tests only
 cargo test intel_400x_tests
@@ -81,11 +91,13 @@ cargo test demo
 ```
 
 ### Run with Detailed Output
+
 ```bash
 cargo test -- --nocapture
 ```
 
 ### Run Specific Test
+
 ```bash
 cargo test test_name
 ```
@@ -93,6 +105,7 @@ cargo test test_name
 ## Test Architecture
 
 ### Mock System
+
 The test suite includes a comprehensive mock system that provides:
 
 - **MockPin**: Simulates pin behavior with operation counting
@@ -101,6 +114,7 @@ The test suite includes a comprehensive mock system that provides:
 - **MockTimeProvider**: Deterministic time source for timing tests
 
 ### Property-Based Testing
+
 Uses `proptest` to verify:
 
 - State machine invariants hold for all inputs
@@ -109,6 +123,7 @@ Uses `proptest` to verify:
 - Timing constraints are maintained
 
 ### Integration Testing
+
 Tests verify that:
 
 - Concrete implementations (like Intel4001) correctly use the common traits
@@ -118,28 +133,33 @@ Tests verify that:
 ## Key Testing Areas
 
 ### 1. Timing and Clock Logic
+
 - Clock edge detection accuracy
 - Two-phase clock handling
 - Access time simulation
 - State machine timing
 
 ### 2. Address Handling
+
 - Nibble assembly into full addresses
 - Address latching during clock phases
 - Address validation and bounds checking
 
 ### 3. Data Bus Operations
+
 - 4-bit data bus read/write operations
 - Bus tri-stating for contention avoidance
 - Bit-level manipulation and verification
 
 ### 4. State Machine Verification
+
 - State transition correctness
 - State invariant preservation
 - Reset behavior verification
 - Error state handling
 
 ### 5. Hardware Abstraction
+
 - Pin operation safety
 - Driver management
 - Hardware timing simulation

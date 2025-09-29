@@ -40,26 +40,26 @@ enum MemoryState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Instruction {
     // Data Transfer Instructions (8)
-    Ldm(u8),        // Load accumulator immediate (LDM #)
-    Ld(u8),         // Load accumulator from register (LD R)
-    Xch(u8),        // Exchange accumulator with register (XCH R)
-    Add(u8),        // Add register to accumulator (ADD R)
-    Sub(u8),        // Subtract register from accumulator (SUB R)
-    Inc(u8),        // Increment register (INC R)
-    Bbl(u8),        // Branch back and load (BBL #)
-    Jun(u16),       // Jump unconditional (JUN addr)
+    Ldm(u8),  // Load accumulator immediate (LDM #)
+    Ld(u8),   // Load accumulator from register (LD R)
+    Xch(u8),  // Exchange accumulator with register (XCH R)
+    Add(u8),  // Add register to accumulator (ADD R)
+    Sub(u8),  // Subtract register from accumulator (SUB R)
+    Inc(u8),  // Increment register (INC R)
+    Bbl(u8),  // Branch back and load (BBL #)
+    Jun(u16), // Jump unconditional (JUN addr)
 
     // Arithmetic Instructions (4)
-    AddC(u8),       // Add register with carry (ADC R)
-    SubC(u8),       // Subtract register with carry (SBC R)
-    Dad(u8),        // Decimal add register (DAD R)
-    Daa,            // Decimal adjust accumulator (DAA)
+    AddC(u8), // Add register with carry (ADC R)
+    SubC(u8), // Subtract register with carry (SBC R)
+    Dad(u8),  // Decimal add register (DAD R)
+    Daa,      // Decimal adjust accumulator (DAA)
 
     // Logic Instructions (4)
-    Ral,            // Rotate left (RAL)
-    Rar,            // Rotate right (RAR)
-    Tcc,            // Transmit carry clear (TCC)
-    Tcs,            // Transmit carry set (TCS)
+    Ral, // Rotate left (RAL)
+    Rar, // Rotate right (RAR)
+    Tcc, // Transmit carry clear (TCC)
+    Tcs, // Transmit carry set (TCS)
 
     // Control Transfer Instructions (8)
     Jcn(u8, u16),   // Jump conditional (JCN condition, addr)
@@ -68,25 +68,25 @@ enum Instruction {
     JntInvert(u16), // Jump on test inverted (JNT addr) - wait instruction
 
     // Machine Instruction (1)
-    Src(u8),        // Send register control (SRC R)
+    Src(u8), // Send register control (SRC R)
 
     // Input/Output and RAM Instructions (8)
-    Wrm,            // Write accumulator to RAM (WRM)
-    Wmp,            // Write memory pointer (WMP)
-    Wrr,            // Write ROM port and register (WRR)
-    Wpm,            // Write program memory (WPM)
-    Adm,            // Add from memory (ADM)
-    Sbm,            // Subtract from memory (SBM)
-    Rdm,            // Read memory (RDM)
-    Rdr,            // Read ROM port and register (RDR)
+    Wrm, // Write accumulator to RAM (WRM)
+    Wmp, // Write memory pointer (WMP)
+    Wrr, // Write ROM port and register (WRR)
+    Wpm, // Write program memory (WPM)
+    Adm, // Add from memory (ADM)
+    Sbm, // Subtract from memory (SBM)
+    Rdm, // Read memory (RDM)
+    Rdr, // Read ROM port and register (RDR)
 
     // Accumulator Group Instructions (8)
-    Clb,            // Clear both (CLB)
-    Clc,            // Clear carry (CLC)
-    Cmc,            // Complement carry (CMC)
-    Stc,            // Set carry (STC)
-    Cma,            // Complement accumulator (CMA)
-    Iac,            // Increment accumulator (IAC)
+    Clb, // Clear both (CLB)
+    Clc, // Clear carry (CLC)
+    Cmc, // Complement carry (CMC)
+    Stc, // Set carry (STC)
+    Cma, // Complement accumulator (CMA)
+    Iac, // Increment accumulator (IAC)
     // Note: CMC and RAL are already defined above
 
     // Invalid instruction
@@ -124,19 +124,19 @@ pub struct Intel4004 {
     ram_bank: u8,                        // Currently selected RAM bank (0-7)
 
     // Two-phase clock state tracking
-    prev_phi1: PinValue,                 // Previous Φ1 clock state for edge detection
-    prev_phi2: PinValue,                 // Previous Φ2 clock state for edge detection
+    prev_phi1: PinValue, // Previous Φ1 clock state for edge detection
+    prev_phi2: PinValue, // Previous Φ2 clock state for edge detection
 
     // Memory operation state machine
-    memory_state: MemoryState,           // Current state of memory operation
-    address_high_nibble: Option<u8>,     // High nibble of 8-bit address
-    address_low_nibble: Option<u8>,      // Low nibble of 8-bit address
-    full_address_ready: bool,            // Whether complete address is assembled
+    memory_state: MemoryState,       // Current state of memory operation
+    address_high_nibble: Option<u8>, // High nibble of 8-bit address
+    address_low_nibble: Option<u8>,  // Low nibble of 8-bit address
+    full_address_ready: bool,        // Whether complete address is assembled
 
     // Instruction execution state
-    current_op: Instruction,             // Currently decoded instruction
-    operand_latch: u8,                   // Latched operand for multi-byte instructions
-    jump_address: Option<u16>,           // Jump target address for conditional jumps
+    current_op: Instruction,   // Currently decoded instruction
+    operand_latch: u8,         // Latched operand for multi-byte instructions
+    jump_address: Option<u16>, // Jump target address for conditional jumps
 
     // Timing and synchronization
     address_latch_time: Option<Instant>, // Timestamp when address was latched
@@ -150,13 +150,13 @@ impl Intel4004 {
     pub fn new(name: String, clock_speed: f64) -> Self {
         let pin_names = vec![
             "D0", "D1", "D2", "D3",     // Data bus pins
-            "SYNC",                      // Sync signal
-            "CM_ROM",                    // ROM chip select
-            "CM_RAM",                    // RAM chip select
-            "TEST",                      // Test pin
-            "RESET",                     // Reset
-            "PHI1",                      // Clock phase 1
-            "PHI2",                      // Clock phase 2
+            "SYNC",   // Sync signal
+            "CM_ROM", // ROM chip select
+            "CM_RAM", // RAM chip select
+            "TEST",   // Test pin
+            "RESET",  // Reset
+            "PHI1",   // Clock phase 1
+            "PHI2",   // Clock phase 2
         ];
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
@@ -462,7 +462,8 @@ impl Intel4004 {
     /// Hardware: RESET pin clears all internal state and tri-states outputs
     fn handle_reset(&mut self) {
         let (_, _, _, test) = self.read_control_pins();
-        if test {  // Note: Using TEST pin as RESET for now - should be RESET pin
+        if test {
+            // Note: Using TEST pin as RESET for now - should be RESET pin
             // RESET is high - clear all internal state
             self.accumulator = 0;
             self.carry = false;
@@ -575,7 +576,7 @@ impl Intel4004 {
     fn assemble_full_address(&mut self) {
         if let (Some(high), Some(low)) = (self.address_high_nibble, self.address_low_nibble) {
             // Assemble 8-bit address: (high << 4) | low
-            self.address_latch = ((high as u8) << 4) | (low as u8);
+            self.address_latch = (high << 4) | low;
             self.full_address_ready = true;
             self.address_latch_time = Some(Instant::now());
 
@@ -646,7 +647,7 @@ impl Intel4004 {
             0x00..=0x0F => {
                 let reg = opcode & 0x0F;
                 if opcode < 0x08 {
-                    Instruction::Ld(reg)  // LD R
+                    Instruction::Ld(reg) // LD R
                 } else {
                     Instruction::Xch(reg) // XCH R
                 }
@@ -656,17 +657,17 @@ impl Intel4004 {
             0x10..=0x1F => {
                 let reg = opcode & 0x0F;
                 if opcode < 0x18 {
-                    Instruction::Add(reg)  // ADD R
+                    Instruction::Add(reg) // ADD R
                 } else {
-                    Instruction::Sub(reg)  // SUB R
+                    Instruction::Sub(reg) // SUB R
                 }
             }
 
             // Logic Instructions (0x20-0x2F)
             0x20..=0x2F => {
                 match opcode {
-                    0x20..=0x27 => Instruction::AddC(opcode & 0x0F),  // ADC R
-                    0x28..=0x2F => Instruction::SubC(opcode & 0x0F),  // SBC R
+                    0x20..=0x27 => Instruction::AddC(opcode & 0x0F), // ADC R
+                    0x28..=0x2F => Instruction::SubC(opcode & 0x0F), // SBC R
                     _ => Instruction::Invalid,
                 }
             }
@@ -674,10 +675,10 @@ impl Intel4004 {
             // Control Transfer Instructions (0x30-0x3F)
             0x30..=0x3F => {
                 match opcode {
-                    0x30..=0x33 => Instruction::Jcn(opcode & 0x0F, 0),  // JCN condition
-                    0x34..=0x37 => Instruction::Jcn(opcode & 0x0F, 0),  // JCN condition
-                    0x38..=0x3B => Instruction::Jcn(opcode & 0x0F, 0),  // JCN condition
-                    0x3C..=0x3F => Instruction::Jcn(opcode & 0x0F, 0),  // JCN condition
+                    0x30..=0x33 => Instruction::Jcn(opcode & 0x0F, 0), // JCN condition
+                    0x34..=0x37 => Instruction::Jcn(opcode & 0x0F, 0), // JCN condition
+                    0x38..=0x3B => Instruction::Jcn(opcode & 0x0F, 0), // JCN condition
+                    0x3C..=0x3F => Instruction::Jcn(opcode & 0x0F, 0), // JCN condition
                     _ => Instruction::Invalid,
                 }
             }
@@ -685,24 +686,23 @@ impl Intel4004 {
             // Immediate Instructions (0x40-0x4F)
             0x40..=0x4F => {
                 let reg = opcode & 0x0F;
-                Instruction::Ldm(reg)  // LDM #
+                Instruction::Ldm(reg) // LDM #
             }
 
             // I/O and RAM Instructions (0x50-0x5F)
             0x50..=0x5F => {
                 match opcode {
-                    0x50..=0x57 => Instruction::Wrm,  // WRM
-                    0x58..=0x5F => Instruction::Wmp,  // WMP
+                    0x50..=0x57 => Instruction::Wrm, // WRM
+                    0x58..=0x5F => Instruction::Wmp, // WMP
                     _ => Instruction::Invalid,
                 }
             }
 
             // Register Reference Instructions (0x60-0x6F)
             0x60..=0x6F => {
-                let reg = opcode & 0x0F;
                 match opcode {
-                    0x60..=0x67 => Instruction::Wrr,  // WRR
-                    0x68..=0x6F => Instruction::Wpm,  // WPM
+                    0x60..=0x67 => Instruction::Wrr, // WRR
+                    0x68..=0x6F => Instruction::Wpm, // WPM
                     _ => Instruction::Invalid,
                 }
             }
@@ -710,22 +710,22 @@ impl Intel4004 {
             // Accumulator Group Instructions (0x70-0x7F)
             0x70..=0x7F => {
                 match opcode {
-                    0x70 => Instruction::Adm,  // ADM
-                    0x71 => Instruction::Sbm,  // SBM
-                    0x72 => Instruction::Clb,  // CLB
-                    0x73 => Instruction::Clc,  // CLC
-                    0x74 => Instruction::Cmc,  // CMC
-                    0x75 => Instruction::Stc,  // STC
-                    0x76 => Instruction::Cma,  // CMA
-                    0x77 => Instruction::Iac,  // IAC
-                    0x78 => Instruction::Rdm,  // RDM
-                    0x79 => Instruction::Rdr,  // RDR
-                    0x7A => Instruction::Ral,  // RAL
-                    0x7B => Instruction::Rar,  // RAR
-                    0x7C => Instruction::Tcc,  // TCC
-                    0x7D => Instruction::Tcs,  // TCS
-                    0x7E => Instruction::Daa,  // DAA
-                    0x7F => Instruction::Tcs,  // TCS (duplicate in some docs)
+                    0x70 => Instruction::Adm, // ADM
+                    0x71 => Instruction::Sbm, // SBM
+                    0x72 => Instruction::Clb, // CLB
+                    0x73 => Instruction::Clc, // CLC
+                    0x74 => Instruction::Cmc, // CMC
+                    0x75 => Instruction::Stc, // STC
+                    0x76 => Instruction::Cma, // CMA
+                    0x77 => Instruction::Iac, // IAC
+                    0x78 => Instruction::Rdm, // RDM
+                    0x79 => Instruction::Rdr, // RDR
+                    0x7A => Instruction::Ral, // RAL
+                    0x7B => Instruction::Rar, // RAR
+                    0x7C => Instruction::Tcc, // TCC
+                    0x7D => Instruction::Tcs, // TCS
+                    0x7E => Instruction::Daa, // DAA
+                    0x7F => Instruction::Tcs, // TCS (duplicate in some docs)
                     _ => Instruction::Invalid,
                 }
             }
@@ -733,62 +733,62 @@ impl Intel4004 {
             // Jump Instructions (0x80-0x8F)
             0x80..=0x8F => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R
+                Instruction::Src(reg) // SRC R
             }
 
             // Jump Instructions (0x90-0x9F)
             0x90..=0x9F => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R (continued)
+                Instruction::Src(reg) // SRC R (continued)
             }
 
             // Jump Instructions (0xA0-0xAF)
             0xA0..=0xAF => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R (continued)
+                Instruction::Src(reg) // SRC R (continued)
             }
 
             // Jump Instructions (0xB0-0xBF)
             0xB0..=0xBF => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R (continued)
+                Instruction::Src(reg) // SRC R (continued)
             }
 
             // Jump Instructions (0xC0-0xCF)
             0xC0..=0xCF => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R (continued)
+                Instruction::Src(reg) // SRC R (continued)
             }
 
             // Jump Instructions (0xD0-0xDF)
             0xD0..=0xDF => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R (continued)
+                Instruction::Src(reg) // SRC R (continued)
             }
 
             // Jump Instructions (0xE0-0xEF)
             0xE0..=0xEF => {
                 let reg = opcode & 0x0F;
-                Instruction::Src(reg)  // SRC R (continued)
+                Instruction::Src(reg) // SRC R (continued)
             }
 
             // Jump Instructions (0xF0-0xFF)
             0xF0..=0xFF => {
                 match opcode {
-                    0xF0 => Instruction::Clb,  // CLB
-                    0xF1 => Instruction::Clc,  // CLC
-                    0xF2 => Instruction::Iac,  // IAC
-                    0xF3 => Instruction::Cmc,  // CMC
-                    0xF4 => Instruction::Cma,  // CMA
-                    0xF5 => Instruction::Ral,  // RAL
-                    0xF6 => Instruction::Rar,  // RAR
-                    0xF7 => Instruction::Rar,  // RAR (duplicate)
-                    0xF8 => Instruction::Daa,  // DAA
-                    0xF9 => Instruction::Daa,  // DAA (duplicate)
-                    0xFA => Instruction::Stc,  // STC
-                    0xFB => Instruction::Stc,  // STC (duplicate)
-                    0xFC => Instruction::Tcc,  // TCC
-                    0xFD => Instruction::Tcs,  // TCS
+                    0xF0 => Instruction::Clb, // CLB
+                    0xF1 => Instruction::Clc, // CLC
+                    0xF2 => Instruction::Iac, // IAC
+                    0xF3 => Instruction::Cmc, // CMC
+                    0xF4 => Instruction::Cma, // CMA
+                    0xF5 => Instruction::Ral, // RAL
+                    0xF6 => Instruction::Rar, // RAR
+                    0xF7 => Instruction::Rar, // RAR (duplicate)
+                    0xF8 => Instruction::Daa, // DAA
+                    0xF9 => Instruction::Daa, // DAA (duplicate)
+                    0xFA => Instruction::Stc, // STC
+                    0xFB => Instruction::Stc, // STC (duplicate)
+                    0xFC => Instruction::Tcc, // TCC
+                    0xFD => Instruction::Tcs, // TCS
                     0xFE => Instruction::Invalid,
                     0xFF => Instruction::Invalid,
                     _ => Instruction::Invalid,
@@ -839,7 +839,9 @@ impl Intel4004 {
 
             Instruction::Sub(reg) => {
                 if reg < 16 {
-                    let result = self.accumulator.wrapping_sub(self.index_registers[reg as usize]);
+                    let result = self
+                        .accumulator
+                        .wrapping_sub(self.index_registers[reg as usize]);
                     self.carry = self.accumulator < self.index_registers[reg as usize];
                     self.accumulator = result & 0x0F;
                 }
@@ -860,8 +862,12 @@ impl Intel4004 {
             Instruction::SubC(reg) => {
                 if reg < 16 {
                     let carry_val = if self.carry { 1 } else { 0 };
-                    let result = self.accumulator.wrapping_sub(self.index_registers[reg as usize]).wrapping_sub(carry_val);
-                    self.carry = self.accumulator < (self.index_registers[reg as usize] + carry_val);
+                    let result = self
+                        .accumulator
+                        .wrapping_sub(self.index_registers[reg as usize])
+                        .wrapping_sub(carry_val);
+                    self.carry =
+                        self.accumulator < (self.index_registers[reg as usize] + carry_val);
                     self.accumulator = result & 0x0F;
                 }
                 self.program_counter.inc();
@@ -870,14 +876,16 @@ impl Intel4004 {
             // Logic Instructions
             Instruction::Ral => {
                 let new_carry = (self.accumulator & 0x08) != 0;
-                self.accumulator = ((self.accumulator << 1) | (if self.carry { 1 } else { 0 })) & 0x0F;
+                self.accumulator =
+                    ((self.accumulator << 1) | (if self.carry { 1 } else { 0 })) & 0x0F;
                 self.carry = new_carry;
                 self.program_counter.inc();
             }
 
             Instruction::Rar => {
                 let new_carry = (self.accumulator & 0x01) != 0;
-                self.accumulator = ((self.accumulator >> 1) | (if self.carry { 0x08 } else { 0 })) & 0x0F;
+                self.accumulator =
+                    ((self.accumulator >> 1) | (if self.carry { 0x08 } else { 0 })) & 0x0F;
                 self.carry = new_carry;
                 self.program_counter.inc();
             }
@@ -947,22 +955,22 @@ impl Intel4004 {
 
             Instruction::Jcn(condition, addr) => {
                 let should_jump = match condition {
-                    0x0 => !self.carry,                    // JNT (Jump if no carry)
-                    0x1 => self.carry,                     // JC (Jump if carry)
-                    0x2 => self.accumulator == 0,          // JZ (Jump if zero)
-                    0x3 => self.accumulator != 0,          // JNZ (Jump if not zero)
-                    0x4 => true,                          // JUN (Jump unconditional)
-                    0x5 => false,                         // Always false
-                    0x6 => true,                          // Always true
-                    0x7 => false,                         // Always false
-                    0x8 => true,                          // Always true
-                    0x9 => false,                         // Always false
-                    0xA => true,                          // Always true
-                    0xB => false,                         // Always false
-                    0xC => true,                          // Always true
-                    0xD => false,                         // Always false
-                    0xE => true,                          // Always true
-                    0xF => false,                         // Always false
+                    0x0 => !self.carry,           // JNT (Jump if no carry)
+                    0x1 => self.carry,            // JC (Jump if carry)
+                    0x2 => self.accumulator == 0, // JZ (Jump if zero)
+                    0x3 => self.accumulator != 0, // JNZ (Jump if not zero)
+                    0x4 => true,                  // JUN (Jump unconditional)
+                    0x5 => false,                 // Always false
+                    0x6 => true,                  // Always true
+                    0x7 => false,                 // Always false
+                    0x8 => true,                  // Always true
+                    0x9 => false,                 // Always false
+                    0xA => true,                  // Always true
+                    0xB => false,                 // Always false
+                    0xC => true,                  // Always true
+                    0xD => false,                 // Always false
+                    0xE => true,                  // Always true
+                    0xF => false,                 // Always false
                     _ => false,
                 };
 
@@ -1042,7 +1050,8 @@ impl Intel4004 {
             // Increment Register Instructions
             Instruction::Inc(reg) => {
                 if reg < 16 {
-                    self.index_registers[reg as usize] = (self.index_registers[reg as usize] + 1) & 0x0F;
+                    self.index_registers[reg as usize] =
+                        (self.index_registers[reg as usize] + 1) & 0x0F;
                 }
                 self.program_counter.inc();
             }

@@ -1,0 +1,110 @@
+{
+  "name": "IntelMcs4",
+  "description": "Basic MCS-4 System with CPU, Clock, 2 ROMs, and 1 RAM",
+  "version": "1.0",
+  "metadata": {
+    "author": "RustyEmu",
+    "created": "2024-01-01",
+    "cpu_speed": 750000,
+    "architecture": "mcs4",
+    "rom_count": 2,
+    "ram_count": 1
+  },
+  "components": {
+    "CPU_4004": {
+      "single": {
+        "component_type": "intel_4004",
+        "name": "CPU_4004",
+        "properties": {
+          "clock_speed": 750000
+        }
+      }
+    },
+    "SYSTEM_CLOCK": {
+      "single": {
+        "component_type": "generic_clock",
+        "name": "SYSTEM_CLOCK",
+        "properties": {
+          "frequency": 750000
+        }
+      }
+    },
+    "ROM_4001_1": {
+      "single": {
+        "component_type": "intel_4001",
+        "name": "ROM_4001_1",
+        "properties": {}
+      }
+    },
+    "ROM_4001_2": {
+      "single": {
+        "component_type": "intel_4001",
+        "name": "ROM_4001_2",
+        "properties": {}
+      }
+    },
+    "RAM_4002": {
+      "single": {
+        "component_type": "intel_4002",
+        "name": "RAM_4002",
+        "properties": {
+          "variant": "Type1",
+          "access_time": 500
+        }
+      }
+    }
+  },
+  "connections": {
+    "clock_signals": {
+      "connection_type": "clock",
+      "source": {
+        "component": "SYSTEM_CLOCK",
+        "pin": "CLK"
+      },
+      "targets": [
+        {"component": "CPU_4004", "pin": "PHI1"},
+        {"component": "CPU_4004", "pin": "PHI2"},
+        {"component": "ROM_4001_1", "pin": "PHI1"},
+        {"component": "ROM_4001_1", "pin": "PHI2"},
+        {"component": "ROM_4001_2", "pin": "PHI1"},
+        {"component": "ROM_4001_2", "pin": "PHI2"},
+        {"component": "RAM_4002", "pin": "PHI1"},
+        {"component": "RAM_4002", "pin": "PHI2"}
+      ]
+    },
+    "data_bus": {
+      "connection_type": "data_bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D0"
+      },
+      "targets": [
+        {"component": "ROM_4001_1", "pin": "D0"},
+        {"component": "ROM_4001_2", "pin": "D0"},
+        {"component": "RAM_4002", "pin": "D0"}
+      ]
+    },
+    "control_signals": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "SYNC"
+      },
+      "targets": [
+        {"component": "ROM_4001_1", "pin": "SYNC"},
+        {"component": "ROM_4001_2", "pin": "SYNC"},
+        {"component": "RAM_4002", "pin": "SYNC"}
+      ]
+    }
+  },
+  "layout": {
+    "grid_size": [10, 10],
+    "positions": {
+      "cpu": [1, 1],
+      "clock": [0, 0],
+      "rom1": [2, 0],
+      "rom2": [3, 0],
+      "ram": [2, 2]
+    }
+  }
+}

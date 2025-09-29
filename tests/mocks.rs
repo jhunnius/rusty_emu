@@ -4,11 +4,11 @@
 //! to enable comprehensive testing of the intel_400x traits and functionality.
 
 use rusty_emu::component::{BaseComponent, Component};
-use rusty_emu::pin::{Pin, PinValue};
 use rusty_emu::components::common::intel_400x::*;
+use rusty_emu::pin::{Pin, PinValue};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 
 /// Mock pin implementation for testing
 #[derive(Debug, Clone)]
@@ -77,8 +77,15 @@ impl MockIntel400xComponent {
         let data_pins = ["D0", "D1", "D2", "D3"];
         let control_pins = ["SYNC", "CM", "RESET"];
 
-        for pin_name in clock_pins.iter().chain(data_pins.iter()).chain(control_pins.iter()) {
-            pins.insert(pin_name.to_string(), Arc::new(Mutex::new(MockPin::new(pin_name))));
+        for pin_name in clock_pins
+            .iter()
+            .chain(data_pins.iter())
+            .chain(control_pins.iter())
+        {
+            pins.insert(
+                pin_name.to_string(),
+                Arc::new(Mutex::new(MockPin::new(pin_name))),
+            );
         }
 
         Self {
@@ -118,7 +125,11 @@ impl MockIntel400xComponent {
     pub fn set_data_bus(&self, value: u8) {
         for i in 0..4 {
             let bit_value = (value >> i) & 1;
-            let pin_value = if bit_value == 1 { PinValue::High } else { PinValue::Low };
+            let pin_value = if bit_value == 1 {
+                PinValue::High
+            } else {
+                PinValue::Low
+            };
             self.set_pin_value(&format!("D{}", i), pin_value);
         }
     }
@@ -312,27 +323,33 @@ impl MockScenario {
     }
 
     pub fn set_clock_high(&mut self) {
-        self.component.set_clock_values(PinValue::High, PinValue::High);
+        self.component
+            .set_clock_values(PinValue::High, PinValue::High);
     }
 
     pub fn set_clock_low(&mut self) {
-        self.component.set_clock_values(PinValue::Low, PinValue::Low);
+        self.component
+            .set_clock_values(PinValue::Low, PinValue::Low);
     }
 
     pub fn set_phi1_rising_edge(&mut self) {
-        self.component.set_clock_values(PinValue::High, PinValue::Low);
+        self.component
+            .set_clock_values(PinValue::High, PinValue::Low);
     }
 
     pub fn set_phi1_falling_edge(&mut self) {
-        self.component.set_clock_values(PinValue::Low, PinValue::Low);
+        self.component
+            .set_clock_values(PinValue::Low, PinValue::Low);
     }
 
     pub fn set_phi2_rising_edge(&mut self) {
-        self.component.set_clock_values(PinValue::Low, PinValue::High);
+        self.component
+            .set_clock_values(PinValue::Low, PinValue::High);
     }
 
     pub fn set_phi2_falling_edge(&mut self) {
-        self.component.set_clock_values(PinValue::Low, PinValue::Low);
+        self.component
+            .set_clock_values(PinValue::Low, PinValue::Low);
     }
 
     pub fn set_data_bus_value(&mut self, value: u8) {
@@ -355,7 +372,7 @@ impl MockScenario {
         self.time_provider.advance(duration);
     }
 
-    pub fn set_access_time(&mut self, duration: Duration) {
+    pub fn set_access_time(&mut self, _duration: Duration) {
         // This would need to be implemented in the actual component
         // For now, it's a placeholder
     }

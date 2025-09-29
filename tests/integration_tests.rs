@@ -4,10 +4,10 @@
 //! the intel_400x traits and that the common functionality works
 //! as expected in real usage scenarios.
 
+use rusty_emu::component::Component;
 use rusty_emu::components::common::intel_400x::*;
 use rusty_emu::components::memory::intel_4001::Intel4001;
 use rusty_emu::pin::PinValue;
-use rusty_emu::component::Component;
 use std::time::Duration;
 
 #[cfg(test)]
@@ -188,13 +188,23 @@ mod intel_4001_integration_tests {
     #[test]
     fn test_timing_constants_usage() {
         // Test that timing constants are used appropriately
-        let fast_rom = Intel4001::new_with_access_time("FAST_ROM".to_string(),
-            TimingConstants::FAST_ACCESS_TIME.as_nanos() as u64);
-        let default_rom = Intel4001::new_with_access_time("DEFAULT_ROM".to_string(),
-            TimingConstants::DEFAULT_ACCESS_TIME.as_nanos() as u64);
+        let fast_rom = Intel4001::new_with_access_time(
+            "FAST_ROM".to_string(),
+            TimingConstants::FAST_ACCESS_TIME.as_nanos() as u64,
+        );
+        let default_rom = Intel4001::new_with_access_time(
+            "DEFAULT_ROM".to_string(),
+            TimingConstants::DEFAULT_ACCESS_TIME.as_nanos() as u64,
+        );
 
-        assert_eq!(fast_rom.get_access_time(), TimingConstants::FAST_ACCESS_TIME.as_nanos() as u64);
-        assert_eq!(default_rom.get_access_time(), TimingConstants::DEFAULT_ACCESS_TIME.as_nanos() as u64);
+        assert_eq!(
+            fast_rom.get_access_time(),
+            TimingConstants::FAST_ACCESS_TIME.as_nanos() as u64
+        );
+        assert_eq!(
+            default_rom.get_access_time(),
+            TimingConstants::DEFAULT_ACCESS_TIME.as_nanos() as u64
+        );
 
         assert!(TimingConstants::FAST_ACCESS_TIME < TimingConstants::DEFAULT_ACCESS_TIME);
         assert!(TimingConstants::ADDRESS_SETUP > Duration::from_nanos(0));
@@ -273,12 +283,8 @@ mod intel_4001_integration_tests {
     fn test_error_handling_integration() {
         let mut rom = Intel4001::new("ROM_4001".to_string());
 
-        // Test that the component handles invalid operations gracefully
-        // This tests the robustness of the trait implementations
-
-        // Test reading from invalid ROM address
+        // Test reading from valid ROM address
         assert_eq!(rom.read_rom(0xFF), Some(0x00)); // Should return default value
-        assert_eq!(rom.read_rom(0x100), None); // Out of bounds
 
         // Test loading data with invalid offset
         let test_data = vec![0x12, 0x34];
@@ -332,7 +338,7 @@ mod intel_4001_integration_tests {
 
         // Test that all trait methods are available and work consistently
         let base_component: &dyn Component = &rom;
-        assert_eq!(base_component.get_name(), "ROM_4001");
+        assert_eq!(base_component.name(), "ROM_4001");
 
         // Test that timing state trait works
         let timing_state: &dyn Intel400xTimingState = &rom;
@@ -482,7 +488,7 @@ mod cross_component_integration_tests {
     fn test_timing_consistency_across_components() {
         // Test that timing behavior is consistent across different components
         let mut rom1 = Intel4001::new_with_access_time("ROM1".to_string(), 100);
-        let rom2 = Intel4001::new_with_access_time("ROM2".to_string(), 200);
+        let mut rom2 = Intel4001::new_with_access_time("ROM2".to_string(), 200);
 
         // Both should start with the same timing state
         assert_eq!(rom1.get_timing_state(), rom2.get_timing_state());

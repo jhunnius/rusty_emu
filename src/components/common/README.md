@@ -1,10 +1,12 @@
 # Intel 400x Common Functionality
 
-This module provides shared functionality for all Intel 400x series chips (4001, 4002, 4003, 4004). It contains common traits, utilities, and behaviors that are used across multiple components.
+This module provides shared functionality for all Intel 400x series chips (4001, 4002, 4003, 4004). It contains common
+traits, utilities, and behaviors that are used across multiple components.
 
 ## Purpose
 
 The Intel 400x series shares many common characteristics:
+
 - **Two-phase clock operation** (Φ1, Φ2)
 - **4-bit data bus** with multiplexed address/data
 - **12-bit address space** (8-bit addresses in two 4-bit cycles)
@@ -61,6 +63,7 @@ pub trait Intel400xClockHandling {
 ```
 
 **Key Features:**
+
 - Edge detection for both clock phases
 - Previous state tracking for transition detection
 - Thread-safe pin access
@@ -81,6 +84,7 @@ pub trait Intel400xDataBus {
 ```
 
 **Key Features:**
+
 - Safe pin access with error handling
 - Driver name tracking for debugging
 - Bus contention avoidance
@@ -101,6 +105,7 @@ pub trait Intel400xAddressHandling {
 ```
 
 **Key Features:**
+
 - Two-phase address latching (high nibble, then low nibble)
 - Timing-aware address assembly
 - Access time validation
@@ -121,6 +126,7 @@ pub trait Intel400xControlPins {
 ```
 
 **Key Features:**
+
 - Safe pin reading with fallback values
 - Consistent pin naming across components
 
@@ -139,6 +145,7 @@ pub trait Intel400xResetHandling {
 ```
 
 **Key Features:**
+
 - System-wide reset signal handling
 - Component-specific reset behaviors
 
@@ -167,6 +174,7 @@ pub trait Intel400xTimingState {
 ```
 
 **Key Features:**
+
 - Unified state machine interface
 - Timing constraint management
 - Address tracking and validation
@@ -243,6 +251,7 @@ pub mod utils {
 ### Error Handling
 
 All pin operations include proper error handling:
+
 - **Lock failures**: Return safe default values
 - **Pin not found**: Return appropriate error messages
 - **Invalid states**: Graceful degradation
@@ -347,19 +356,19 @@ The common code implements hardware-accurate timing where possible:
 ### Planned Improvements
 
 1. **Enhanced Timing Simulation**
-   - More accurate sub-nanosecond timing
-   - Better clock phase relationship modeling
-   - Improved signal propagation delays
+    - More accurate sub-nanosecond timing
+    - Better clock phase relationship modeling
+    - Improved signal propagation delays
 
 2. **Extended Component Support**
-   - Support for additional Intel 400x variants
-   - Enhanced I/O device support
-   - Better peripheral modeling
+    - Support for additional Intel 400x variants
+    - Enhanced I/O device support
+    - Better peripheral modeling
 
 3. **Testing Improvements**
-   - More sophisticated mock scenarios
-   - Better timing verification tools
-   - Enhanced debugging capabilities
+    - More sophisticated mock scenarios
+    - Better timing verification tools
+    - Enhanced debugging capabilities
 
 ### Extension Points
 
@@ -394,4 +403,5 @@ The common functionality depends on:
 - **Shared Code**: No duplication across components
 - **Efficient State Storage**: Compact state representation
 
-This common functionality module provides a solid foundation for all Intel 400x components while maintaining high performance and hardware accuracy.
+This common functionality module provides a solid foundation for all Intel 400x components while maintaining high
+performance and hardware accuracy.

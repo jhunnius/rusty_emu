@@ -5,7 +5,6 @@
 
 use rusty_emu::components::common::intel_400x::*;
 use rusty_emu::pin::PinValue;
-use crate::mocks::*;
 use std::time::Duration;
 
 #[cfg(test)]
@@ -21,10 +20,10 @@ mod data_bus_tests {
         assert_eq!(scenario.get_data_bus_value(), 0x05);
 
         // Verify individual bits
-        assert_eq!(scenario.component.get_pin_value("D0"), Some(PinValue::High));  // LSB
+        assert_eq!(scenario.component.get_pin_value("D0"), Some(PinValue::High)); // LSB
         assert_eq!(scenario.component.get_pin_value("D1"), Some(PinValue::Low));
         assert_eq!(scenario.component.get_pin_value("D2"), Some(PinValue::High));
-        assert_eq!(scenario.component.get_pin_value("D3"), Some(PinValue::Low));  // MSB
+        assert_eq!(scenario.component.get_pin_value("D3"), Some(PinValue::Low)); // MSB
 
         // Test writing different value
         scenario.set_data_bus_value(0x0A); // 1010 in binary
@@ -72,12 +71,20 @@ mod clock_handling_tests {
         let scenario = MockScenario::new("TestClockReading");
 
         // Test reading clock pins in different states
-        scenario.component.set_clock_values(PinValue::Low, PinValue::Low);
+        scenario
+            .component
+            .set_clock_values(PinValue::Low, PinValue::Low);
         // In a real implementation, this would test the actual trait methods
         // For now, we verify the mock setup works correctly
 
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::Low)
+        );
     }
 
     #[test]
@@ -86,23 +93,47 @@ mod clock_handling_tests {
 
         // Test PHI1 rising edge
         scenario.set_phi1_rising_edge();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::High));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::High)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::Low)
+        );
 
         // Test PHI1 falling edge
         scenario.set_phi1_falling_edge();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::Low)
+        );
 
         // Test PHI2 rising edge
         scenario.set_phi2_rising_edge();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::High));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::High)
+        );
 
         // Test PHI2 falling edge
         scenario.set_phi2_falling_edge();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::Low)
+        );
     }
 
     #[test]
@@ -111,16 +142,34 @@ mod clock_handling_tests {
 
         // Simulate a clock cycle: Low -> High -> Low
         scenario.set_clock_low();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::Low)
+        );
 
         scenario.set_clock_high();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::High));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::High));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::High)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::High)
+        );
 
         scenario.set_clock_low();
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("PHI2"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI2"),
+            Some(PinValue::Low)
+        );
     }
 }
 
@@ -134,10 +183,16 @@ mod control_pin_tests {
 
         // Test SYNC pin
         scenario.set_pin_value("SYNC", PinValue::High);
-        assert_eq!(scenario.component.get_pin_value("SYNC"), Some(PinValue::High));
+        assert_eq!(
+            scenario.component.get_pin_value("SYNC"),
+            Some(PinValue::High)
+        );
 
         scenario.set_pin_value("SYNC", PinValue::Low);
-        assert_eq!(scenario.component.get_pin_value("SYNC"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("SYNC"),
+            Some(PinValue::Low)
+        );
 
         // Test CM-ROM pin
         scenario.component.set_pin_value("CM", PinValue::High);
@@ -148,10 +203,16 @@ mod control_pin_tests {
 
         // Test RESET pin
         scenario.component.set_pin_value("RESET", PinValue::High);
-        assert_eq!(scenario.component.get_pin_value("RESET"), Some(PinValue::High));
+        assert_eq!(
+            scenario.component.get_pin_value("RESET"),
+            Some(PinValue::High)
+        );
 
         scenario.component.set_pin_value("RESET", PinValue::Low);
-        assert_eq!(scenario.component.get_pin_value("RESET"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("RESET"),
+            Some(PinValue::Low)
+        );
     }
 
     #[test]
@@ -166,7 +227,10 @@ mod control_pin_tests {
         scenario.set_data_bus_value(0x0F);
 
         // Verify state is set
-        assert_eq!(scenario.component.get_timing_state(), TimingState::DriveData);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::DriveData
+        );
         assert_eq!(scenario.component.get_full_address_ready(), true);
         assert_eq!(scenario.component.get_address_high_nibble(), Some(0x12));
         assert_eq!(scenario.component.get_address_low_nibble(), Some(0x34));
@@ -184,7 +248,10 @@ mod control_pin_tests {
         // Data bus should be tri-stated (HighZ)
         for i in 0..4 {
             let pin_name = format!("D{}", i);
-            assert_eq!(scenario.component.get_pin_value(&pin_name), Some(PinValue::HighZ));
+            assert_eq!(
+                scenario.component.get_pin_value(&pin_name),
+                Some(PinValue::HighZ)
+            );
         }
     }
 }
@@ -203,19 +270,32 @@ mod timing_state_tests {
         assert!(!scenario.component.get_timing_state().is_address_phase());
 
         // Transition to address phase
-        scenario.component.set_timing_state(TimingState::AddressPhase);
-        assert_eq!(scenario.component.get_timing_state(), TimingState::AddressPhase);
+        scenario
+            .component
+            .set_timing_state(TimingState::AddressPhase);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::AddressPhase
+        );
         assert!(!scenario.component.get_timing_state().is_idle());
         assert!(scenario.component.get_timing_state().is_address_phase());
 
         // Transition to wait latency
-        scenario.component.set_timing_state(TimingState::WaitLatency);
-        assert_eq!(scenario.component.get_timing_state(), TimingState::WaitLatency);
+        scenario
+            .component
+            .set_timing_state(TimingState::WaitLatency);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::WaitLatency
+        );
         assert!(scenario.component.get_timing_state().is_waiting_latency());
 
         // Transition to drive data
         scenario.component.set_timing_state(TimingState::DriveData);
-        assert_eq!(scenario.component.get_timing_state(), TimingState::DriveData);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::DriveData
+        );
         assert!(scenario.component.get_timing_state().is_driving_data());
     }
 
@@ -236,7 +316,10 @@ mod timing_state_tests {
         assert_eq!(scenario.component.get_address_high_nibble(), Some(0x12));
         assert_eq!(scenario.component.get_address_low_nibble(), Some(0x34));
         assert_eq!(scenario.component.get_full_address_ready(), true);
-        assert_eq!(scenario.component.get_address_latch_time(), Some(latch_time));
+        assert_eq!(
+            scenario.component.get_address_latch_time(),
+            Some(latch_time)
+        );
 
         // Test clearing the latch
         scenario.component.set_address_high_nibble(None);
@@ -255,7 +338,10 @@ mod timing_state_tests {
         let scenario = MockScenario::new("TestAccessTime");
 
         // Test default access time
-        assert_eq!(scenario.component.get_access_time(), TimingConstants::DEFAULT_ACCESS_TIME);
+        assert_eq!(
+            scenario.component.get_access_time(),
+            TimingConstants::DEFAULT_ACCESS_TIME
+        );
 
         // In a real implementation, we would test changing the access time
         // For now, we verify the getter works
@@ -276,9 +362,14 @@ mod integration_scenarios {
         assert_eq!(scenario.component.get_timing_state(), TimingState::Idle);
 
         // Phase 1: Address phase - high nibble
-        scenario.component.set_timing_state(TimingState::AddressPhase);
+        scenario
+            .component
+            .set_timing_state(TimingState::AddressPhase);
         scenario.component.set_address_high_nibble(Some(0x12));
-        assert_eq!(scenario.component.get_timing_state(), TimingState::AddressPhase);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::AddressPhase
+        );
         assert_eq!(scenario.component.get_address_high_nibble(), Some(0x12));
 
         // Phase 2: Address phase - low nibble
@@ -293,8 +384,13 @@ mod integration_scenarios {
         assert_eq!(scenario.component.get_full_address_ready(), true);
 
         // Phase 3: Wait for latency
-        scenario.component.set_timing_state(TimingState::WaitLatency);
-        assert_eq!(scenario.component.get_timing_state(), TimingState::WaitLatency);
+        scenario
+            .component
+            .set_timing_state(TimingState::WaitLatency);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::WaitLatency
+        );
 
         // Advance time past access time
         scenario.advance_time(scenario.component.get_access_time() + Duration::from_nanos(10));
@@ -302,7 +398,10 @@ mod integration_scenarios {
         // Phase 4: Drive data
         scenario.component.set_timing_state(TimingState::DriveData);
         scenario.set_data_bus_value(0x0F); // Drive some data
-        assert_eq!(scenario.component.get_timing_state(), TimingState::DriveData);
+        assert_eq!(
+            scenario.component.get_timing_state(),
+            TimingState::DriveData
+        );
         assert_eq!(scenario.get_data_bus_value(), 0x0F);
 
         // Cycle complete - return to idle
@@ -322,7 +421,10 @@ mod integration_scenarios {
         for i in 0..4 {
             let pin_name = format!("D{}", i);
             scenario.component.set_pin_value(&pin_name, PinValue::HighZ);
-            assert_eq!(scenario.component.get_pin_value(&pin_name), Some(PinValue::HighZ));
+            assert_eq!(
+                scenario.component.get_pin_value(&pin_name),
+                Some(PinValue::HighZ)
+            );
         }
     }
 
@@ -370,9 +472,18 @@ mod error_handling_tests {
         assert_eq!(scenario.component.get_pin_value("NONEXISTENT"), None);
 
         // Standard pins should exist
-        assert_eq!(scenario.component.get_pin_value("D0"), Some(PinValue::HighZ));
-        assert_eq!(scenario.component.get_pin_value("PHI1"), Some(PinValue::Low));
-        assert_eq!(scenario.component.get_pin_value("SYNC"), Some(PinValue::Low));
+        assert_eq!(
+            scenario.component.get_pin_value("D0"),
+            Some(PinValue::HighZ)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("PHI1"),
+            Some(PinValue::Low)
+        );
+        assert_eq!(
+            scenario.component.get_pin_value("SYNC"),
+            Some(PinValue::Low)
+        );
     }
 
     #[test]
@@ -381,7 +492,10 @@ mod error_handling_tests {
 
         // Test setting pin to HighZ (tri-state)
         scenario.component.set_pin_value("D0", PinValue::HighZ);
-        assert_eq!(scenario.component.get_pin_value("D0"), Some(PinValue::HighZ));
+        assert_eq!(
+            scenario.component.get_pin_value("D0"),
+            Some(PinValue::HighZ)
+        );
 
         // Test that HighZ is handled correctly in bus operations
         // (This would be more relevant in actual hardware interface tests)

@@ -1,14 +1,14 @@
+use rusty_emu::component::{BaseComponent, Component};
 use rusty_emu::components::common::intel_400x::*;
 use rusty_emu::pin::PinValue;
-use rusty_emu::component::{BaseComponent, Component};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 
 // Mock component for testing trait implementations
 #[derive(Debug)]
 struct MockComponent {
-    pins: std::collections::HashMap<String, Arc<Mutex<TestPin>>>,
+    pins: HashMap<String, Arc<Mutex<TestPin>>>,
 }
 
 #[derive(Debug)]
@@ -40,7 +40,7 @@ impl Pin {
 impl MockComponent {
     fn new() -> Self {
         Self {
-            pins: std::collections::HashMap::new(),
+            pins: HashMap::new(),
         }
     }
 
@@ -49,7 +49,10 @@ impl MockComponent {
     }
 
     fn get_pin(&self, name: &str) -> Result<Arc<Mutex<TestPin>>, String> {
-        self.pins.get(name).cloned().ok_or_else(|| format!("Pin {} not found", name))
+        self.pins
+            .get(name)
+            .cloned()
+            .ok_or_else(|| format!("Pin {} not found", name))
     }
 }
 
@@ -97,7 +100,10 @@ mod tests {
     #[test]
     fn test_timing_constants() {
         // Test that timing constants have expected values
-        assert_eq!(TimingConstants::DEFAULT_ACCESS_TIME, Duration::from_nanos(500));
+        assert_eq!(
+            TimingConstants::DEFAULT_ACCESS_TIME,
+            Duration::from_nanos(500)
+        );
         assert_eq!(TimingConstants::FAST_ACCESS_TIME, Duration::from_nanos(200));
         assert_eq!(TimingConstants::ADDRESS_SETUP, Duration::from_nanos(100));
         assert_eq!(TimingConstants::DATA_VALID, Duration::from_nanos(200));
@@ -105,8 +111,6 @@ mod tests {
 
     #[test]
     fn test_assemble_full_address() {
-        let mock = MockComponent::new();
-
         // Create a mock trait implementation for testing
         struct TestAddressHandler {
             base: MockComponent,
@@ -129,10 +133,22 @@ mod tests {
         let handler = TestAddressHandler::new();
 
         // Test address assembly with valid nibbles
-        assert_eq!(handler.assemble_full_address(Some(0x0F), Some(0x23)), Some(0x0F23));
-        assert_eq!(handler.assemble_full_address(Some(0x12), Some(0x34)), Some(0x1234));
-        assert_eq!(handler.assemble_full_address(Some(0x00), Some(0x00)), Some(0x0000));
-        assert_eq!(handler.assemble_full_address(Some(0xFF), Some(0xFF)), Some(0xFFFF));
+        assert_eq!(
+            handler.assemble_full_address(Some(0x0F), Some(0x23)),
+            Some(0x0F23)
+        );
+        assert_eq!(
+            handler.assemble_full_address(Some(0x12), Some(0x34)),
+            Some(0x1234)
+        );
+        assert_eq!(
+            handler.assemble_full_address(Some(0x00), Some(0x00)),
+            Some(0x0000)
+        );
+        assert_eq!(
+            handler.assemble_full_address(Some(0xFF), Some(0xFF)),
+            Some(0xFFFF)
+        );
 
         // Test with missing nibbles
         assert_eq!(handler.assemble_full_address(None, Some(0x23)), None);
@@ -216,9 +232,9 @@ mod tests {
 
     #[test]
     fn test_utils_create_driver_name() {
-        assert_eq!(utils::create_driver_name("COMP1", "DATA"), "COMP1_DATA");
-        assert_eq!(utils::create_driver_name("MEMORY", "ADDR"), "MEMORY_ADDR");
-        assert_eq!(utils::create_driver_name("CPU", "CONTROL"), "CPU_CONTROL");
+        assert_eq!(create_driver_name("COMP1", "DATA"), "COMP1_DATA");
+        assert_eq!(create_driver_name("MEMORY", "ADDR"), "MEMORY_ADDR");
+        assert_eq!(create_driver_name("CPU", "CONTROL"), "CPU_CONTROL");
     }
 
     #[test]
@@ -329,7 +345,7 @@ mod tests {
         );
 
         assert_eq!(high_nibble, None); // Should be cleared
-        assert_eq!(low_nibble, None);  // Should be cleared
+        assert_eq!(low_nibble, None); // Should be cleared
         assert_eq!(full_address_ready, true);
         assert!(address_latch_time.is_some());
 
