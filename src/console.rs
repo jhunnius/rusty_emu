@@ -84,64 +84,76 @@ impl ConsoleApp {
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Setup terminal
-        enable_raw_mode()?;
+        enable_raw_mode().map_err(|e| format!("Failed to enable raw mode: {}", e))?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        execute!(stdout, EnterAlternateScreen).map_err(|e| format!("Failed to enter alternate screen: {}", e))?;
+
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
         self.running = true;
+        let mut last_draw = Instant::now();
 
         // Main event loop
         while self.running {
+            let now = Instant::now();
+
             // Handle input
-            if event::poll(Duration::from_millis(50))? {
-                if let Event::Key(key) = event::read()? {
+            if let Ok(true) = event::poll(Duration::from_millis(10)) {
+                if let Ok(Event::Key(key)) = event::read() {
                     self.handle_key_event(key.code);
                 }
             }
 
-            // Update display if needed
-            if self.last_update.elapsed() >= Duration::from_millis(self.config.refresh_rate_ms) {
-                terminal.draw(|f| self.draw_ui(f))?;
-                self.last_update = Instant::now();
+            // Update display at regular intervals
+            if now.duration_since(last_draw) >= Duration::from_millis(self.config.refresh_rate_ms) {
+                if let Err(e) = terminal.draw(|f| self.draw_ui(f)) {
+                    eprintln!("DEBUG: Failed to draw UI: {}", e);
+                    break;
+                }
+                last_draw = now;
             }
 
             // Check if system should still be running
             if let Ok(system) = self.system.lock() {
                 if !system.is_running() && !self.show_help {
-                    // System stopped, show final state
-                    terminal.draw(|f| self.draw_ui(f))?;
-                    thread::sleep(Duration::from_millis(1000));
+                    // System stopped, show final state briefly
+                    if let Err(e) = terminal.draw(|f| self.draw_ui(f)) {
+                        eprintln!("DEBUG: Failed to draw final UI: {}", e);
+                    }
+                    thread::sleep(Duration::from_millis(500));
                     break;
                 }
             }
+
+            // Small delay to prevent busy waiting
+            thread::sleep(Duration::from_millis(1));
         }
 
         // Restore terminal
-        disable_raw_mode()?;
+        disable_raw_mode().map_err(|e| format!("Failed to disable raw mode: {}", e))?;
         execute!(
             terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
-        terminal.show_cursor()?;
+            LeaveAlternateScreen
+        ).map_err(|e| format!("Failed to leave alternate screen: {}", e))?;
+        terminal.show_cursor().map_err(|e| format!("Failed to show cursor: {}", e))?;
 
         Ok(())
     }
 
     fn handle_key_event(&mut self, key: KeyCode) {
         match key {
-            KeyCode::Char('q') | KeyCode::Esc => {
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                println!("DEBUG: Quit key pressed, stopping console");
                 self.running = false;
                 if let Ok(mut system) = self.system.lock() {
                     system.stop();
                 }
             }
-            KeyCode::Char('h') => {
+            KeyCode::Char('h') | KeyCode::Char('H') => {
                 self.show_help = !self.show_help;
             }
-            KeyCode::Char('r') => {
+            KeyCode::Char('r') | KeyCode::Char('R') => {
                 if let Ok(mut system) = self.system.lock() {
                     if system.is_running() {
                         system.stop();
@@ -150,7 +162,7 @@ impl ConsoleApp {
                     }
                 }
             }
-            KeyCode::Char('s') => {
+            KeyCode::Char('s') | KeyCode::Char('S') => {
                 if let Ok(mut system) = self.system.lock() {
                     system.stop();
                 }
@@ -170,7 +182,9 @@ impl ConsoleApp {
                 self.command_buffer.clear();
             }
             KeyCode::Char(c) => {
-                self.command_buffer.push(c);
+                if c.is_ascii_alphabetic() || c.is_ascii_digit() {
+                    self.command_buffer.push(c);
+                }
             }
             _ => {}
         }
@@ -180,6 +194,7 @@ impl ConsoleApp {
         let cmd = self.command_buffer.trim().to_lowercase();
         match cmd.as_str() {
             "quit" | "exit" | "q" => {
+                println!("DEBUG: Executing quit command");
                 self.running = false;
                 if let Ok(mut system) = self.system.lock() {
                     system.stop();
@@ -206,6 +221,7 @@ impl ConsoleApp {
             }
             _ => {
                 // Unknown command - could show error message
+                println!("DEBUG: Unknown command: {}", cmd);
             }
         }
     }
@@ -218,36 +234,37 @@ impl ConsoleApp {
             return;
         }
 
-        // Create main layout
+        // Create main layout with proper constraints
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Title bar
-                Constraint::Min(10),    // Main content
+                Constraint::Length(4),  // Title bar
+                Constraint::Min(8),     // Main content
                 Constraint::Length(3),  // Command bar
             ])
             .split(size);
 
         // Title bar
-        let title = Paragraph::new(vec![
+        let title_text = vec![
             Line::from(vec![
                 Span::styled("Intel MCS-4 Emulator Console", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             ]),
             Line::from(vec![
                 Span::raw("Commands: "),
-                Span::styled("q", Style::default().fg(Color::Yellow)),
-                Span::raw("uit, "),
-                Span::styled("r", Style::default().fg(Color::Yellow)),
-                Span::raw("un, "),
-                Span::styled("s", Style::default().fg(Color::Yellow)),
-                Span::raw("top, "),
-                Span::styled("h", Style::default().fg(Color::Yellow)),
-                Span::raw("elp, "),
-                Span::styled("Tab", Style::default().fg(Color::Yellow)),
-                Span::raw(" to switch panes"),
+                Span::styled("q/Q", Style::default().fg(Color::Yellow)),
+                Span::raw("=quit, "),
+                Span::styled("r/R", Style::default().fg(Color::Yellow)),
+                Span::raw("=run, "),
+                Span::styled("s/S", Style::default().fg(Color::Yellow)),
+                Span::raw("=stop, "),
+                Span::styled("h/H", Style::default().fg(Color::Yellow)),
+                Span::raw("=help"),
             ]),
-        ])
-        .block(Block::default().borders(Borders::ALL).title("Status"));
+        ];
+
+        let title = Paragraph::new(title_text)
+            .block(Block::default().borders(Borders::ALL).title("Status"))
+            .wrap(Wrap { trim: true });
         f.render_widget(title, chunks[0]);
 
         // Main content area
@@ -315,19 +332,23 @@ impl ConsoleApp {
             .split(area);
 
         // System information
-        let system_info = if let Ok(system) = self.system.lock() {
-            let info = system.get_system_info();
-            vec![
-                Line::from(vec![Span::raw(format!("System: {}", info.name))]),
-                Line::from(vec![Span::raw(format!("Description: {}", info.description))]),
-                Line::from(vec![Span::raw(format!("Components: {}", info.component_count))]),
-                Line::from(vec![Span::raw(format!("CPU Speed: {} Hz", info.cpu_speed))]),
-                Line::from(vec![Span::raw(format!("ROM Size: {} bytes", info.rom_size))]),
-                Line::from(vec![Span::raw(format!("RAM Size: {} nibbles", info.ram_size))]),
-                Line::from(vec![Span::raw(format!("Running: {}", system.is_running()))]),
-            ]
-        } else {
-            vec![Line::from(vec![Span::raw("System information unavailable")])]
+        let system_info = match self.system.lock() {
+            Ok(system) => {
+                match system.get_system_info() {
+                    info => vec![
+                        Line::from(vec![Span::raw(format!("System: {}", info.name))]),
+                        Line::from(vec![Span::raw(format!("Description: {}", info.description))]),
+                        Line::from(vec![Span::raw(format!("Components: {}", info.component_count))]),
+                        Line::from(vec![Span::raw(format!("CPU Speed: {} Hz", info.cpu_speed))]),
+                        Line::from(vec![Span::raw(format!("ROM Size: {} bytes", info.rom_size))]),
+                        Line::from(vec![Span::raw(format!("RAM Size: {} nibbles", info.ram_size))]),
+                        Line::from(vec![Span::raw(format!("Running: {}", system.is_running()))]),
+                    ]
+                }
+            }
+            Err(_) => {
+                vec![Line::from(vec![Span::raw("System information unavailable")])]
+            }
         };
 
         let system_widget = Paragraph::new(system_info)
@@ -354,26 +375,29 @@ impl ConsoleApp {
         let mut ram_info = vec![Line::from(vec![Span::raw("RAM Contents:")])];
 
         // Try to get actual RAM data from the system
-        if let Ok(_system) = self.system.lock() {
-            // This is a simplified version - in a real implementation,
-            // we would need to access the actual RAM components
-            // For now, show a more informative placeholder
-            ram_info.push(Line::from(vec![Span::raw("Reading RAM contents...")]));
+        match self.system.lock() {
+            Ok(_system) => {
+                // This is a simplified version - in a real implementation,
+                // we would need to access the actual RAM components
+                // For now, show a more informative placeholder
+                ram_info.push(Line::from(vec![Span::raw("Reading RAM contents...")]));
 
-            // Show some sample memory ranges
-            for bank in 0..4 {
-                let mut bank_data = format!("Bank {}: [", bank);
-                for i in 0..20 {
-                    if i > 0 && i % 4 == 0 {
-                        bank_data.push(' ');
+                // Show some sample memory ranges
+                for bank in 0..4 {
+                    let mut bank_data = format!("Bank {}: [", bank);
+                    for i in 0..20 {
+                        if i > 0 && i % 4 == 0 {
+                            bank_data.push(' ');
+                        }
+                        bank_data.push_str("00");
                     }
-                    bank_data.push_str("00");
+                    bank_data.push(']');
+                    ram_info.push(Line::from(vec![Span::raw(bank_data)]));
                 }
-                bank_data.push(']');
-                ram_info.push(Line::from(vec![Span::raw(bank_data)]));
             }
-        } else {
-            ram_info.push(Line::from(vec![Span::raw("Unable to access RAM data")]));
+            Err(_) => {
+                ram_info.push(Line::from(vec![Span::raw("Unable to access RAM data")]));
+            }
         }
 
         let ram_widget = Paragraph::new(ram_info)
