@@ -742,7 +742,9 @@ impl Component for Intel4001 {
     /// Main update cycle - handles clock edge detection and operation dispatch
     /// Hardware: Responds to Φ1 and Φ2 clock edges from CPU
     fn update(&mut self) {
+        println!("DEBUG: update() method called for {}", self.base.name());
         if !self.is_running() {
+            println!("DEBUG: Component not running, returning");
             return;
         }
         // Handle both rising and falling edges for proper two-phase operation
@@ -1028,11 +1030,21 @@ mod tests {
         // Initially should be in idle state
         assert_eq!(rom.memory_state, MemoryState::Idle);
 
+        // Start the component so it can process updates
+        rom.base.set_running(true);
+        assert!(rom.is_running());
+
         // Get pin references
         let sync_pin = rom.get_pin("SYNC").unwrap();
         let cm_pin = rom.get_pin("CM").unwrap();
         let ci_pin = rom.get_pin("CI").unwrap();
         let phi1_pin = rom.get_pin("PHI1").unwrap();
+
+        // Initialize PHI1 to Low first
+        {
+            let mut phi1_guard = phi1_pin.lock().unwrap();
+            phi1_guard.set_driver(Some("TEST".to_string()), PinValue::Low);
+        }
 
         // Set up memory read operation: SYNC=1, CM=1, CI=0 (memory access)
         {
@@ -1044,14 +1056,43 @@ mod tests {
             ci_guard.set_driver(Some("TEST".to_string()), PinValue::Low); // Memory access
         }
 
-        // Set Φ1 high
+        // Set Φ1 high (creating rising edge)
         {
             let mut phi1_guard = phi1_pin.lock().unwrap();
             phi1_guard.set_driver(Some("TEST".to_string()), PinValue::High);
         }
 
+        // Debug: Check pin states before update
+        println!("DEBUG: Before update - SYNC: {:?}, CM: {:?}, CI: {:?}, PHI1: {:?}",
+                 sync_pin.lock().unwrap().read(),
+                 cm_pin.lock().unwrap().read(),
+                 ci_pin.lock().unwrap().read(),
+                 phi1_pin.lock().unwrap().read());
+
+        // Debug: Check conditions that would trigger memory operation
+        let sync = rom.read_sync_pin();
+        let chip_select = rom.read_cm_rom_pin();
+        let io_select = rom.read_ci_pin();
+        println!("DEBUG: Conditions - sync: {}, chip_select: {}, io_select: {}, combined: {}",
+                 sync, chip_select, io_select, sync && chip_select && !io_select);
+
+        // Debug: Check edge detection
+        println!("DEBUG: Before update - prev_phi1: {:?}", rom.prev_phi1);
+
+        // Debug: Check what read_clock_pins returns
+        let (read_phi1, _) = rom.read_clock_pins();
+        println!("DEBUG: read_clock_pins() returns PHI1: {:?}", read_phi1);
+
+        // Debug: Check edge detection logic manually
+        let phi1_rising = read_phi1 == PinValue::High && rom.prev_phi1 == PinValue::Low;
+        println!("DEBUG: Manual edge detection - PHI1: {:?}, prev_phi1: {:?}, rising: {}",
+                 read_phi1, rom.prev_phi1, phi1_rising);
+
         // Update to process Φ1 rising edge
         rom.update();
+
+        // Debug: Check edge detection results
+        println!("DEBUG: After update - prev_phi1: {:?}", rom.prev_phi1);
 
         // Should have started memory operation and transitioned to AddressPhase
         assert_eq!(rom.memory_state, MemoryState::AddressPhase);

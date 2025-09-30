@@ -476,8 +476,8 @@ impl Intel4002 {
 
         // Check for RAM operation start on Φ1 rising edge with SYNC high
         let (sync, _cm, p0, _) = self.read_control_pins();
-        if sync && p0 {
-            // Start RAM address phase on Φ1 rising edge
+        if sync && p0 && self.ram_state == RamState::Idle {
+            // Start RAM address phase on Φ1 rising edge (only when idle)
             self.start_ram_address_phase();
         }
 
@@ -1121,6 +1121,10 @@ mod tests {
     fn test_address_latching() {
         let mut ram = Intel4002::new_with_access_time("RAM_4002".to_string(), 1);
 
+        // Start the component so it can process updates
+        ram.base.set_running(true);
+        assert!(ram.is_running());
+
         // Get pin references
         let sync_pin = ram.get_pin("SYNC").unwrap();
         let p0_pin = ram.get_pin("P0").unwrap();
@@ -1156,33 +1160,55 @@ mod tests {
             d3_guard.set_driver(Some("TEST".to_string()), PinValue::Low);
         }
 
+        // Debug: Check pin states before first update
+        println!("DEBUG: Before first update - SYNC: {:?}, P0: {:?}, PHI1: {:?}",
+                 sync_pin.lock().unwrap().read(),
+                 p0_pin.lock().unwrap().read(),
+                 phi1_pin.lock().unwrap().read());
+
+        // Debug: Check conditions that would trigger RAM operation
+        let (sync, _cm, p0, _) = ram.read_control_pins();
+        println!("DEBUG: Control pins - sync: {}, p0: {}, combined: {}", sync, p0, sync && p0);
+
+        // Debug: Check initial clock state
+        println!("DEBUG: Before first update - prev_phi1: {:?}", ram.prev_phi1);
+
         // High nibble
         phi1_pin
             .lock()
             .unwrap()
             .set_driver(Some("TEST".into()), PinValue::High);
         ram.update(); // rising edge -> latch high nibble
+
+        // Debug: Check clock state after first update
+        println!("DEBUG: After first update - prev_phi1: {:?}", ram.prev_phi1);
+
         phi1_pin
             .lock()
             .unwrap()
             .set_driver(Some("TEST".into()), PinValue::Low);
         ram.update(); // falling edge
 
-        // Should have transitioned to AddressPhase
+        // Should have transitioned to AddressPhase and latched high nibble
         assert_eq!(ram.ram_state, RamState::AddressPhase);
         assert_eq!(ram.address_high_nibble, Some(0x0));
+        // Note: full_address_ready should be false until both nibbles are assembled
 
-        // Set address low nibble (0x0) on data bus
+        // Set address low nibble (0x1) on data bus - different from high nibble
         {
             let mut d0_guard = d0_pin.lock().unwrap();
             let mut d1_guard = d1_pin.lock().unwrap();
             let mut d2_guard = d2_pin.lock().unwrap();
             let mut d3_guard = d3_pin.lock().unwrap();
-            d0_guard.set_driver(Some("TEST".into()), PinValue::Low);
+            d0_guard.set_driver(Some("TEST".into()), PinValue::High); // Bit 0 = 1
             d1_guard.set_driver(Some("TEST".into()), PinValue::Low);
             d2_guard.set_driver(Some("TEST".into()), PinValue::Low);
             d3_guard.set_driver(Some("TEST".into()), PinValue::Low);
         }
+
+        // Debug: Check state before low nibble
+        println!("DEBUG: Before low nibble - High: {:?}, Low: {:?}, Ready: {}",
+                 ram.address_high_nibble, ram.address_low_nibble, ram.full_address_ready);
 
         // Low nibble
         phi1_pin
@@ -1190,6 +1216,11 @@ mod tests {
             .unwrap()
             .set_driver(Some("TEST".into()), PinValue::High);
         ram.update(); // rising edge -> latch low nibble
+
+        // Debug: Check state after low nibble
+        println!("DEBUG: After low nibble - High: {:?}, Low: {:?}, Ready: {}",
+                 ram.address_high_nibble, ram.address_low_nibble, ram.full_address_ready);
+
         phi1_pin
             .lock()
             .unwrap()
@@ -1197,8 +1228,8 @@ mod tests {
         ram.update(); // falling edge
 
         // Should have assembled full address and transitioned to WaitLatency
-        assert_eq!(ram.last_address, 0x00);
-        assert_eq!(ram.full_address_ready, true);
+        assert_eq!(ram.last_address, 0x01); // High nibble 0x0, low nibble 0x1 = 0x01
+        assert_eq!(ram.full_address_ready, true); // Now both nibbles are assembled
         assert_eq!(ram.ram_state, RamState::WaitLatency);
     }
 

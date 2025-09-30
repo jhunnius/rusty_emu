@@ -53,6 +53,7 @@ impl Intel400xAddressHandling for MockComponent {
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
     use super::*;
 
     #[test]
@@ -297,6 +298,8 @@ mod tests {
             ),
             false
         );
+
+        thread::sleep(Duration::from_micros(1));
 
         // Test with recent latch time (should return false if not enough time elapsed)
         let recent_time = Some(Instant::now());

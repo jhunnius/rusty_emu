@@ -271,8 +271,6 @@ fn create_system(system_type: &str, program_data: &[u8]) -> Result<ConfigurableS
 }
 
 fn run_system_demo(system: ConfigurableSystem) {
-    let start_time = Instant::now();
-
     // Display system information
     let info = system.get_system_info();
     println!("System: {} - {}", info.name, info.description);
