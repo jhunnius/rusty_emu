@@ -22,7 +22,7 @@
     },
     "SYSTEM_CLOCK": {
       "single": {
-        "component_type": "generic_clock",
+        "component_type": "two_phase_clock",
         "name": "SYSTEM_CLOCK",
         "properties": {
           "frequency": 750000
@@ -59,16 +59,25 @@
       "connection_type": "clock",
       "source": {
         "component": "SYSTEM_CLOCK",
-        "pin": "CLK"
+        "pin": "PHI1"
       },
       "targets": [
         {"component": "CPU_4004", "pin": "PHI1"},
-        {"component": "CPU_4004", "pin": "PHI2"},
         {"component": "ROM_4001_1", "pin": "PHI1"},
-        {"component": "ROM_4001_1", "pin": "PHI2"},
         {"component": "ROM_4001_2", "pin": "PHI1"},
+        {"component": "RAM_4002", "pin": "PHI1"}
+      ]
+    },
+    "clock_signals_phi2": {
+      "connection_type": "clock",
+      "source": {
+        "component": "SYSTEM_CLOCK",
+        "pin": "PHI2"
+      },
+      "targets": [
+        {"component": "CPU_4004", "pin": "PHI2"},
+        {"component": "ROM_4001_1", "pin": "PHI2"},
         {"component": "ROM_4001_2", "pin": "PHI2"},
-        {"component": "RAM_4002", "pin": "PHI1"},
         {"component": "RAM_4002", "pin": "PHI2"}
       ]
     },

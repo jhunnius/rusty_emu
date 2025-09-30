@@ -569,6 +569,11 @@ impl Intel4004 {
             // All conditions met: drive data on bus
             let data = self.data_latch;
             self.write_data_bus(data);
+
+            if self.cycle_count % 1000 == 0 { // Log every 1000 cycles
+                println!("DEBUG: [{}] CPU State | PC: 0x{:03X} | Cycles: {} | ACC: 0x{:X} | SYNC: {} | CM_ROM: {} | CM_RAM: {} | RAM_Ready: {}",
+                        self.base.name(), self.program_counter.value(), self.cycle_count, self.accumulator, sync, cm_rom, cm_ram, self.full_address_ready);
+            }
         } else {
             // Conditions not met, tri-state
             self.tri_state_data_bus();
@@ -948,6 +953,8 @@ impl Intel4004 {
             // I/O and RAM Instructions
             Instruction::Wrm => {
                 // Write accumulator to RAM - handled by memory interface
+                println!("DEBUG: [CPU] Executing WRM instruction | ACC: 0x{:X} | PC: 0x{:03X}",
+                        self.accumulator, self.program_counter.value());
                 self.program_counter.inc();
             }
 
@@ -1110,6 +1117,128 @@ impl Intel4004 {
             None
         }
     }
+
+    /// Test helper: Execute a single instruction for testing
+    /// This bypasses the normal clock synchronization for testing purposes
+    pub fn execute_single_instruction(&mut self) {
+        // Force instruction phase to execute if we're in fetch phase
+        if self.instruction_phase == InstructionPhase::Fetch {
+            self.instruction_phase = InstructionPhase::Execute;
+        }
+
+        if self.instruction_phase == InstructionPhase::Execute {
+            let old_pc = self.program_counter.value();
+            self.execute_instruction();
+            let new_pc = self.program_counter.value();
+
+            println!("DEBUG: [TEST] Single Execute | PC: 0x{:03X} -> 0x{:03X} | ACC: 0x{:X}",
+                    old_pc, new_pc, self.accumulator);
+        }
+    }
+
+    /// Test helper: Load a test program into the CPU
+    /// This simulates having a program in ROM for testing
+    pub fn load_test_program(&mut self, program: Vec<u8>) {
+        // Set PC to start of program
+        self.program_counter = U12::new(0);
+
+        // Load program data into index register 0 for testing
+        // In a real implementation, this would load into ROM
+        for (i, &byte) in program.iter().enumerate() {
+            if i < 16 {
+                self.index_registers[i] = byte & 0x0F;
+            }
+        }
+
+        println!("DEBUG: [{}] Loaded test program: {:02X?}", self.base.name(), program);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_4004_basic_execution() {
+        let mut cpu = Intel4004::new("TEST_CPU".to_string(), 750000.0);
+
+        // Test basic instruction execution
+        cpu.reset();
+        assert_eq!(cpu.get_accumulator(), 0);
+        assert_eq!(cpu.get_program_counter(), 0);
+
+        // Test individual instructions directly
+        // Test CLB (0xF0) - Clear Both (accumulator and carry)
+        cpu.current_op = Instruction::Clb;
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 0);
+        assert_eq!(cpu.get_carry(), false);
+
+        // Test CLC (0xF1) - Clear Carry
+        cpu.current_op = Instruction::Clc;
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_carry(), false);
+
+        // Test IAC (0xF2) - Increment Accumulator
+        cpu.current_op = Instruction::Iac;
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 1);
+        assert_eq!(cpu.get_carry(), false); // Should not set carry for 0+1
+
+        println!("DEBUG: Basic execution test completed successfully");
+    }
+
+    #[test]
+    fn test_4004_arithmetic_operations() {
+        let mut cpu = Intel4004::new("TEST_CPU".to_string(), 750000.0);
+
+        cpu.reset();
+
+        // Test LDM (load immediate) - 0xD0 = LDM 0
+        cpu.current_op = Instruction::Ldm(0);
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 0);
+
+        // Test LDM (load immediate) - 0xD5 = LDM 5
+        cpu.current_op = Instruction::Ldm(5);
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 5);
+
+        // Set up register 5 with value 3 for ADD test
+        cpu.set_register(5, 3).unwrap();
+
+        // Test ADD - 0x25 = ADD 5 (5 + 3 = 8)
+        cpu.current_op = Instruction::Add(5);
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 8);
+
+        println!("DEBUG: Arithmetic operations test completed successfully");
+    }
+
+    #[test]
+    fn test_4004_register_operations() {
+        let mut cpu = Intel4004::new("TEST_CPU".to_string(), 750000.0);
+
+        cpu.reset();
+
+        // Test register operations
+        cpu.set_register(0, 0x0A).unwrap();
+        cpu.set_register(1, 0x05).unwrap();
+
+        // Test LD (load from register 0 into accumulator) - 0x00 = LD 0
+        cpu.current_op = Instruction::Ld(0);
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 0x0A);
+
+        // Test XCH (exchange with register 1) - 0x11 = XCH 1
+        cpu.current_op = Instruction::Xch(1);
+        cpu.execute_instruction();
+        assert_eq!(cpu.get_accumulator(), 0x05);  // ACC gets R1's value
+        assert_eq!(cpu.get_register(0).unwrap(), 0x0A);  // R0 gets old ACC value
+        assert_eq!(cpu.get_register(1).unwrap(), 0x0A);  // R1 gets new ACC value
+
+        println!("DEBUG: Register operations test completed successfully");
+    }
 }
 
 impl Component for Intel4004 {
@@ -1144,7 +1273,6 @@ impl Component for Intel4004 {
         self.prev_phi2 = phi2;
 
         if phi1_rising {
-            // Φ1 Rising Edge: Address phase (CPU drives bus) - handle address latching
             self.handle_phi1_rising();
         }
 
@@ -1175,13 +1303,24 @@ impl Component for Intel4004 {
                         self.current_instruction = instruction;
                         self.current_op = self.decode_instruction(instruction);
                         self.instruction_phase = InstructionPhase::Execute;
+
+                        // Debug: Show instruction fetch details
+                        println!("DEBUG: [CPU] Fetched instruction 0x{:02X} from PC 0x{:03X} | ACC: 0x{:X} | RAM_Ready: {}",
+                                instruction, self.program_counter.value(), self.accumulator, self.full_address_ready);
                     }
                 }
             }
 
             InstructionPhase::Execute => {
                 // Execute the current instruction
+                let old_pc = self.program_counter.value();
                 self.execute_instruction();
+                let new_pc = self.program_counter.value();
+
+                // Debug: Show instruction execution details
+                println!("DEBUG: [CPU] Executed {:?} | PC: 0x{:03X} -> 0x{:03X} | ACC: 0x{:X} | RAM_Ready: {}",
+                        self.current_op, old_pc, new_pc, self.accumulator, self.full_address_ready);
+
                 self.instruction_phase = InstructionPhase::Fetch;
             }
 

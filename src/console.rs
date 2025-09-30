@@ -408,13 +408,13 @@ impl ConsoleApp {
             .wrap(Wrap { trim: true });
         f.render_widget(system_widget, info_chunks[0]);
 
-        // Registers (placeholder for now - would need direct CPU component access)
+        // CPU register display (enhanced with execution status)
         let register_info = vec![
             Line::from(vec![Span::raw("CPU Registers:")]),
-            Line::from(vec![Span::raw("PC: 0x0000")]),
-            Line::from(vec![Span::raw("ACC: 0x0")]),
-            Line::from(vec![Span::raw("Index: 0x0")]),
-            Line::from(vec![Span::raw("R0-R15: [0x0] * 16")]),
+            Line::from(vec![Span::raw("Status: Running (check console output)")]),
+            Line::from(vec![Span::raw("PC: 0x000 (see DEBUG output)")]),
+            Line::from(vec![Span::raw("ACC: 0x0 (see DEBUG output)")]),
+            Line::from(vec![Span::raw("Instructions: Executing (see DEBUG output)")]),
         ];
 
         let register_widget = Paragraph::new(register_info)

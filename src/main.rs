@@ -33,6 +33,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+
 fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
@@ -225,28 +226,43 @@ fn get_default_fibonacci_program() -> Vec<u8> {
     ]
 }
 
-fn create_system(system_type: &str, _program_data: &[u8]) -> Result<ConfigurableSystem, String> {
+fn create_system(system_type: &str, program_data: &[u8]) -> Result<ConfigurableSystem, String> {
     let factory = SystemFactory::new();
 
     match system_type {
         "mcs4" | "basic" => {
             // Use the basic MCS-4 configuration
-            factory
+            let mut system = factory
                 .create_from_json("configs/mcs4_basic.json")
-                .map_err(|e| format!("Failed to create basic MCS-4 system: {}", e))
+                .map_err(|e| format!("Failed to create basic MCS-4 system: {}", e))?;
+
+            // Load program data into ROM components
+            system.load_program_data(program_data)?;
+
+            Ok(system)
         }
         "mcs4_max" | "max" | "fig1" => {
             // Use the Fig.1 MCS-4 Max configuration
-            factory
+            let mut system = factory
                 .create_from_json("configs/mcs4_max.json")
-                .map_err(|e| format!("Failed to create MCS-4 Max system: {}", e))
+                .map_err(|e| format!("Failed to create MCS-4 Max system: {}", e))?;
+
+            // Load program data into ROM components
+            system.load_program_data(program_data)?;
+
+            Ok(system)
         }
         _ => {
             // Try to use provided config file directly
             if system_type.ends_with(".json") {
-                factory
+                let mut system = factory
                     .create_from_json(system_type)
-                    .map_err(|e| format!("Failed to create system from '{}': {}", system_type, e))
+                    .map_err(|e| format!("Failed to create system from '{}': {}", system_type, e))?;
+
+                // Load program data into ROM components
+                system.load_program_data(program_data)?;
+
+                Ok(system)
             } else {
                 Err(format!("Unknown system type: {}. Use 'basic', 'max', or provide a JSON config file path.", system_type))
             }
@@ -273,26 +289,31 @@ fn run_system_demo(system: ConfigurableSystem) {
         }
     });
 
-    // Monitor system state
-    let mut iteration = 0;
-    while iteration < 10 {
+    // Monitor system state with timeout
+    let start_time = Instant::now();
+    let timeout = Duration::from_secs(10); // 10 second timeout
+
+    loop {
         thread::sleep(Duration::from_millis(500));
+
+        // Check for timeout
+        if start_time.elapsed() >= timeout {
+            println!("\nSimulation timed out after 10 seconds - stopping system");
+            if let Ok(mut system) = system_arc.lock() {
+                system.stop();
+            }
+            break;
+        }
 
         if let Ok(system) = system_arc.lock() {
             if !system.is_running() {
                 break;
             }
         }
-
-        iteration += 1;
-
-        if iteration >= 8 {
-            if let Ok(mut system) = system_arc.lock() {
-                system.stop();
-            }
-            break;
-        }
     }
+
+    // Wait a bit for components to stop gracefully
+    thread::sleep(Duration::from_millis(1000));
 
     let _ = handle.join();
     let duration = start_time.elapsed();

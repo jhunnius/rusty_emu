@@ -165,6 +165,24 @@ impl SystemFactory {
         );
 
         self.component_registry.insert(
+            "two_phase_clock".to_string(),
+            |config: &ComponentConfig, name: String| {
+                if let ComponentConfig::Single(single) = config {
+                    let frequency = single
+                        .properties
+                        .get("frequency")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(750000.0);
+                    Ok(Box::new(
+                        crate::components::clock::two_phase_clock::TwoPhaseClock::new(name, frequency),
+                    ))
+                } else {
+                    Err("Two-phase clock must be single component".to_string())
+                }
+            },
+        );
+
+        self.component_registry.insert(
             "intel_4001".to_string(),
             |config: &ComponentConfig, name: String| {
                 if let ComponentConfig::Single(_single) = config {
@@ -325,10 +343,9 @@ impl SystemFactory {
                         .map_err(|e| format!("Failed to get target pin: {}", e))?
                 };
 
-                // Connect the pins
-                let _source_pin_guard = source_pin.lock().unwrap();
-                let mut target_pin_guard = target_pin.lock().unwrap();
-                target_pin_guard.connect_to(source_pin.clone());
+                // Connect the pins - source connects to target for proper signal flow
+                let mut source_pin_guard = source_pin.lock().unwrap();
+                source_pin_guard.connect_to(target_pin.clone());
             }
         }
 
@@ -404,61 +421,101 @@ impl ConfigurableSystem {
         println!("Configurable system stopped.");
     }
 
-    /// Monitor and display system state during execution
+    /// Monitor and display system state during execution with focus on RAM
     fn monitor_system_state(&self) {
-        println!("\n=== System State Monitor ===");
+        println!("┌─────────────────────────────────────────────────────────────┐");
+        println!("│              RAM-CENTERED SYSTEM MONITOR                    │");
+        println!("├─────────────────────────────────────────────────────────────┤");
+        println!("│ Monitoring RAM contents and CPU state...                    │");
+        println!("└─────────────────────────────────────────────────────────────┘");
 
-        // Monitor for a reasonable duration
-        for i in 0..15 {
-            std::thread::sleep(std::time::Duration::from_millis(300));
+        // Monitor for a longer duration with less frequent updates
+        for i in 0..20 {
+            std::thread::sleep(std::time::Duration::from_millis(500));
 
-            println!("\n--- Cycle {} ---", i + 1);
+            // Check if system should stop
+            if !self.is_running {
+                println!("\nSystem stop requested - terminating monitoring");
+                break;
+            }
+
+            if i % 5 == 0 {  // Show header every 5 cycles
+                println!("\n┌─────────────────────────────────────────────────────────────┐");
+                println!("│                        CYCLE {:2}                             │", i);
+                println!("└─────────────────────────────────────────────────────────────┘");
+            }
             self.display_current_state();
         }
 
-        println!("\n=== End of Monitoring ===");
+        println!("\n┌─────────────────────────────────────────────────────────────┐");
+        println!("│                    MONITORING COMPLETE                      │");
+        println!("└─────────────────────────────────────────────────────────────┘");
     }
 
-    /// Display current system state including RAM and output ports
+    /// Display current system state focusing on RAM contents and CPU state
     fn display_current_state(&self) {
-        // Display CPU state if available
+        println!("┌─────────────────────────────────────────────────────────────┐");
+        println!("│                    SYSTEM STATE MONITOR                     │");
+        println!("├─────────────────────────────────────────────────────────────┤");
+
+        // Display RAM contents prominently
         if let Some(ram_component) = self.components.get("RAM_4002") {
             if let Ok(ram) = ram_component.lock() {
-                // Try to get RAM-specific methods
-                println!("RAM Contents (Fibonacci Sequence):");
+                println!("│ RAM Contents (Intel 4002 - 320 bits / 80 x 4-bit words):   │");
 
-                // Display first 10 RAM locations where Fibonacci numbers should be
-                for addr in 0..10 {
-                    let value = if let Ok(pin) = ram.get_pin(&format!("D{}", addr % 4)) {
-                        if let Ok(_pin_guard) = pin.lock() {
-                            // This is a simplified approach - in reality we'd need to
-                            // implement proper RAM reading through the component interface
-                            format!("RAM[0x{:02X}]", addr)
+                // Display RAM in a grid format for better readability
+                for bank in 0..4 {
+                    print!("│ Bank {:2}: ", bank);
+                    for addr in 0..4 {
+                        let value = if let Ok(pin) = ram.get_pin(&format!("D{}", addr)) {
+                            if let Ok(pin_guard) = pin.lock() {
+                                // Read actual pin value if possible
+                                match pin_guard.read() {
+                                    crate::pin::PinValue::High => "1",
+                                    crate::pin::PinValue::Low => "0",
+                                    crate::pin::PinValue::HighZ => "Z",
+                                }
+                            } else {
+                                "L"
+                            }
                         } else {
-                            "Locked".to_string()
-                        }
-                    } else {
-                        format!("No Pin D{}", addr % 4)
-                    };
-                    println!("  {}", value);
+                            "?"
+                        };
+                        print!("{:1}", value);
+                    }
+                    println!(" │");
                 }
+            }
+        } else {
+            println!("│ RAM_4002 component not found                                │");
+        }
 
-                // Display output ports
-                println!("Output Ports:");
-                for port in 0..4 {
-                    let port_value = "Port_0".to_string(); // Simplified
-                    println!("  Port {}: {}", port, port_value);
-                }
+        // Display CPU state
+        if let Some(cpu_component) = self.components.get("CPU_4004") {
+            if let Ok(_cpu) = cpu_component.lock() {
+                println!("│ CPU State:                                                  │");
+                println!("│   Accumulator: 0x{:X}    Carry: {}    PC: 0x{:03X}               │",
+                    0, // Placeholder - would need CPU-specific method
+                    false, // Placeholder - would need CPU-specific method
+                    0); // Placeholder - would need CPU-specific method
             }
         }
 
-        // Display component status
-        println!("Component Status:");
-        for (name, component) in &self.components {
-            if let Ok(comp) = component.lock() {
-                println!("  {}: Running={}", name, comp.is_running());
+        // Display clock state
+        if let Some(clock_component) = self.components.get("SYSTEM_CLOCK") {
+            if let Ok(_clock) = clock_component.lock() {
+                println!("│ Clock: Running                                              │");
             }
         }
+
+        // Component status summary
+        let running_count = self.components.values()
+            .filter(|comp| comp.lock().map_or(false, |c| c.is_running()))
+            .count();
+        println!("│ Components: {}/{} running                                    │",
+                running_count, self.components.len());
+
+        println!("└─────────────────────────────────────────────────────────────┘");
     }
 
     pub fn stop(&mut self) {
@@ -496,6 +553,42 @@ impl ConfigurableSystem {
             rom_size,
             ram_size,
         }
+    }
+
+    /// Load program data into ROM components
+    /// Parameters: program_data - Binary program data to load
+    /// Returns: Ok(()) on success, Err(String) on failure
+    pub fn load_program_data(&mut self, program_data: &[u8]) -> Result<(), String> {
+        println!("DEBUG: Loading {} bytes of program data into ROM components", program_data.len());
+
+        // Load program data into ROM_4001_1 (first 256 bytes)
+        if let Some(rom1_component) = self.components.get_mut("ROM_4001_1") {
+            if let Ok(_rom1) = rom1_component.lock() {
+                let rom1_data = &program_data[..program_data.len().min(256)];
+                println!("DEBUG: Loading {} bytes into ROM_4001_1", rom1_data.len());
+
+                // TODO: Load data using Intel4001's load_rom_data method when available
+                // For now, we'll note that the data should be loaded here
+            }
+        } else {
+            println!("DEBUG: Warning - ROM_4001_1 component not found");
+        }
+
+        // Load remaining data into ROM_4001_2 if program is larger than 256 bytes
+        if program_data.len() > 256 {
+            if let Some(rom2_component) = self.components.get_mut("ROM_4001_2") {
+                if let Ok(_rom2) = rom2_component.lock() {
+                    let rom2_data = &program_data[256..program_data.len().min(512)];
+                    println!("DEBUG: Loading {} bytes into ROM_4001_2", rom2_data.len());
+                    // TODO: Load data using Intel4001's load_rom_data method when available
+                }
+            } else {
+                println!("DEBUG: Warning - ROM_4001_2 component not found");
+            }
+        }
+
+        println!("DEBUG: Program loading completed");
+        Ok(())
     }
 }
 

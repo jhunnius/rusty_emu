@@ -742,6 +742,9 @@ impl Component for Intel4001 {
     /// Main update cycle - handles clock edge detection and operation dispatch
     /// Hardware: Responds to Φ1 and Φ2 clock edges from CPU
     fn update(&mut self) {
+        if !self.is_running() {
+            return;
+        }
         // Handle both rising and falling edges for proper two-phase operation
         let phi1_rising = self.is_phi1_rising_edge(self.prev_phi1);
         let phi1_falling = self.is_phi1_falling_edge(self.prev_phi1);

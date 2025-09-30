@@ -50,6 +50,8 @@ pub struct Intel4002 {
     // Instruction cycle tracking
     instruction_phase: bool, // Whether we're in instruction phase
     current_instruction: u8, // Current instruction being processed
+    // Cycle counting for debug output
+    cycle_count: u64, // Total number of clock cycles executed
 }
 
 /// Intel 4002 RAM variants
@@ -210,6 +212,7 @@ impl Intel4002 {
             data_latch: None,
             instruction_phase: false,
             current_instruction: 0,
+            cycle_count: 0,
         }
     }
 
@@ -416,10 +419,11 @@ impl Intel4002 {
             self.set_address_latch_time(None);
             self.set_address_high_nibble(None);
             self.set_address_low_nibble(None);
-            self.set_full_address_ready(false);
+            self.set_full_address_ready(false); // Reset address ready on reset
             self.data_latch = None;
             self.instruction_phase = false;
             self.current_instruction = 0;
+            self.cycle_count = 0;
 
             // Tri-state all outputs
             self.tri_state_data_bus();
@@ -436,6 +440,9 @@ impl Intel4002 {
             self.last_address = (high << 4) | low;
             self.full_address_ready = true;
             self.address_latch_time = Some(Instant::now());
+
+            println!("DEBUG: [{}] Addr Assembled | High: 0x{:X} | Low: 0x{:X} | Full: 0x{:02X} | Ready: {} | Cycles: {}",
+                    self.base.name(), high, low, self.last_address, self.full_address_ready, self.get_cycle_count());
 
             // Clear nibble storage for next address
             self.address_high_nibble = None;
@@ -563,7 +570,11 @@ impl Intel4002 {
     /// Transition to address phase state
     fn start_ram_address_phase(&mut self) {
         self.ram_state = RamState::AddressPhase;
+        // Clear address state for new operation
+        self.address_high_nibble = None;
+        self.address_low_nibble = None;
         self.full_address_ready = false;
+        self.last_address = 0;
     }
 
     /// Handle address nibble latching during address phase
@@ -572,8 +583,12 @@ impl Intel4002 {
 
         if self.address_high_nibble.is_none() {
             self.address_high_nibble = Some(nibble);
+            println!("DEBUG: [{}] Addr Latch High | Nibble: 0x{:X} | State: {:?} | Cycles: {}",
+                    self.base.name(), nibble, self.ram_state, self.get_cycle_count());
         } else if self.address_low_nibble.is_none() {
             self.address_low_nibble = Some(nibble);
+            println!("DEBUG: [{}] Addr Latch Low | High: 0x{:X} | Low: 0x{:X} | State: {:?} | Cycles: {}",
+                    self.base.name(), self.address_high_nibble.unwrap(), nibble, self.ram_state, self.get_cycle_count());
             self.assemble_full_address();
             self.start_latency_wait();
         }
@@ -627,11 +642,16 @@ impl Intel4002 {
                     // First cycle - read from status character
                     // For now, return status character 0 - this should be determined by instruction
                     self.write_data_bus(self.status_characters[0]);
+                    println!("DEBUG: [{}] Status Char Read | Index: 0 | Data: 0x{:X} | State: {:?} | Cycles: {}",
+                            self.base.name(), self.status_characters[0], self.ram_state, self.get_cycle_count());
                 } else {
                     // Second cycle - write to status character
                     // For now, write to status character 0 - this should be determined by instruction
+                    let old_status = self.status_characters[0];
                     self.status_characters[0] = data & 0x0F;
                     self.ram_state = RamState::WriteData;
+                    println!("DEBUG: [{}] Status Char Write | Index: 0 | Old: 0x{:X} | New: 0x{:X} | State: {:?} | Cycles: {}",
+                            self.base.name(), old_status, data & 0x0F, self.ram_state, self.get_cycle_count());
                 }
             } else if address < 80 {
                 // RAM operation
@@ -640,10 +660,15 @@ impl Intel4002 {
                     // First cycle - read from RAM
                     let ram_data = self.memory[address as usize];
                     self.write_data_bus(ram_data);
+                    println!("DEBUG: [{}] RAM Read | Addr: 0x{:02X} | Data: 0x{:X} | Bank: {} | State: {:?} | Cycles: {}",
+                            self.base.name(), address, ram_data, self.bank_select, self.ram_state, self.get_cycle_count());
                 } else {
                     // Second cycle - write to RAM
+                    let old_data = self.memory[address as usize];
                     self.memory[address as usize] = data & 0x0F;
                     self.ram_state = RamState::WriteData;
+                    println!("DEBUG: [{}] RAM Write | Addr: 0x{:02X} | Old: 0x{:X} | New: 0x{:X} | Bank: {} | State: {:?} | Cycles: {}",
+                            self.base.name(), address, old_data, data & 0x0F, self.bank_select, self.ram_state, self.get_cycle_count());
                 }
             }
         } else {
@@ -664,10 +689,15 @@ impl Intel4002 {
                     // First cycle - read from output port (not typical for 4002)
                     let port_data = self.output_ports[port];
                     self.write_data_bus(port_data);
+                    println!("DEBUG: [{}] Output Port Read | Port: {} | Data: 0x{:X} | State: {:?} | Cycles: {}",
+                            self.base.name(), port, port_data, self.ram_state, self.get_cycle_count());
                 } else {
                     // Second cycle - write to output port
                     let data = self.read_data_bus();
+                    let old_port_data = self.output_ports[port];
                     self.handle_output_port_operation(port, data);
+                    println!("DEBUG: [{}] Output Port Write | Port: {} | Old: 0x{:X} | New: 0x{:X} | State: {:?} | Cycles: {}",
+                            self.base.name(), port, old_port_data, data & 0x0F, self.ram_state, self.get_cycle_count());
                 }
             }
         } else {
@@ -679,9 +709,8 @@ impl Intel4002 {
     fn return_to_idle(&mut self) {
         self.ram_state = RamState::Idle;
         self.address_latch_time = None;
-        self.address_high_nibble = None;
-        self.address_low_nibble = None;
-        self.full_address_ready = false;
+        // Don't reset address nibbles and ready flag immediately - keep them for potential reuse
+        // They will be cleared when a new address operation starts
         self.data_latch = None;
         self.instruction_phase = false;
         self.current_instruction = 0;
@@ -730,6 +759,18 @@ impl Component for Intel4002 {
     /// Main update cycle - handles clock edge detection and operation dispatch
     /// Hardware: Responds to Φ1 and Φ2 clock edges from CPU
     fn update(&mut self) {
+        if !self.is_running() {
+            return;
+        }
+        // Debug: Show RAM state periodically to monitor for changes
+        static mut CYCLE_COUNTER: u64 = 0;
+        unsafe {
+            CYCLE_COUNTER += 1;
+            if CYCLE_COUNTER % 5000 == 0 { // Less frequent than CPU to avoid spam
+                println!("DEBUG: [{}] RAM State | Bank: {} | Status: {:?} | Ready: {} | LastAddr: 0x{:02X} | Cycles: {} | HighNib: {:?} | LowNib: {:?}",
+                        self.base.name(), self.bank_select, self.ram_state, self.full_address_ready, self.last_address, self.get_cycle_count(), self.address_high_nibble, self.address_low_nibble);
+            }
+        }
         // Handle both rising and falling edges for proper two-phase operation
         let (phi1, phi2) = self.read_clock_pins();
         let phi1_rising = phi1 == PinValue::High && self.prev_phi1 == PinValue::Low;
@@ -768,6 +809,9 @@ impl Component for Intel4002 {
             let instruction = self.read_data_bus();
             self.handle_special_instructions(instruction);
         }
+
+        // Increment cycle count for debug output
+        self.cycle_count += 1;
     }
 
     /// Run component in time-slice mode (manual control)
@@ -901,6 +945,12 @@ impl Intel4002 {
     /// Returns: The RAM variant (Type1 or Type2)
     pub fn get_variant(&self) -> RamVariant {
         self.variant
+    }
+
+    /// Get the current cycle count for the RAM component
+    /// Returns: Current cycle count since component start
+    pub fn get_cycle_count(&self) -> u64 {
+        self.cycle_count
     }
 
     /// Clear all RAM to zero
