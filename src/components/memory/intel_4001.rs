@@ -742,7 +742,6 @@ impl Component for Intel4001 {
     /// Main update cycle - handles clock edge detection and operation dispatch
     /// Hardware: Responds to Φ1 and Φ2 clock edges from CPU
     fn update(&mut self) {
-        println!("DEBUG: update() method called for {}", self.base.name());
         if !self.is_running() {
             println!("DEBUG: Component not running, returning");
             return;
