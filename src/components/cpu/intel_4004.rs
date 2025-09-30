@@ -12,9 +12,7 @@ use crate::types::U12;
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum InstructionPhase {
     Fetch,   // Fetching instruction from memory
-    Address, // Calculating or fetching address
     Execute, // Executing the instruction
-    Wait,    // Waiting for external operations
 }
 
 /// Memory operation state machine states
@@ -32,13 +30,13 @@ enum MemoryState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Instruction {
     // Data Transfer Instructions (8)
-    Ldm(u8),  // Load accumulator immediate (LDM #)
-    Ld(u8),   // Load accumulator from register (LD R)
-    Xch(u8),  // Exchange accumulator with register (XCH R)
-    Add(u8),  // Add register to accumulator (ADD R)
-    Sub(u8),  // Subtract register from accumulator (SUB R)
-    Inc(u8),  // Increment register (INC R)
-    Bbl(u8),  // Branch back and load (BBL #)
+    Ldm(u8), // Load accumulator immediate (LDM #)
+    Ld(u8),  // Load accumulator from register (LD R)
+    Xch(u8), // Exchange accumulator with register (XCH R)
+    Add(u8), // Add register to accumulator (ADD R)
+    Sub(u8), // Subtract register from accumulator (SUB R)
+    Inc(u8), // Increment register (INC R)
+    Bbl(u8), // Branch back and load (BBL #)
 
     // Arithmetic Instructions (4)
     AddC(u8), // Add register with carry (ADC R)
@@ -454,7 +452,7 @@ impl Intel4004 {
             self.address_high_nibble = None;
             self.address_low_nibble = None;
             self.full_address_ready = false;
-    
+
             // Reset two-instruction format state
             self.pending_operand = None;
             self.operand_assembled = false;
@@ -594,7 +592,8 @@ impl Intel4004 {
             let data = self.data_latch;
             self.write_data_bus(data);
 
-            if self.cycle_count % 1000 == 0 { // Log every 1000 cycles
+            if self.cycle_count % 1000 == 0 {
+                // Log every 1000 cycles
                 println!("DEBUG: [{}] CPU State | PC: 0x{:03X} | Cycles: {} | ACC: 0x{:X} | SYNC: {} | CM_ROM: {} | CM_RAM: {} | RAM_Ready: {}",
                         self.base.name(), self.program_counter.value(), self.cycle_count, self.accumulator, sync, cm_rom, cm_ram, self.full_address_ready);
             }
@@ -928,22 +927,22 @@ impl Intel4004 {
             Instruction::Jcn(condition, addr) => {
                 // Decode condition bits properly
                 let should_jump = match condition & 0x0F {
-                    0x0 => !self.carry && self.accumulator != 0,  // JNT (Jump if no carry and ACC != 0)
-                    0x1 => self.carry,                            // JC (Jump if carry)
-                    0x2 => self.accumulator == 0,                 // JZ (Jump if zero)
-                    0x3 => self.accumulator != 0,                 // JNZ (Jump if not zero)
-                    0x4 => true,                                  // JUN (Jump unconditional)
-                    0x5 => false,                                 // Always false
-                    0x6 => true,                                  // Always true
-                    0x7 => false,                                 // Always false
-                    0x8 => true,                                  // Always true
-                    0x9 => false,                                 // Always false
-                    0xA => true,                                  // Always true
-                    0xB => false,                                 // Always false
-                    0xC => true,                                  // Always true
-                    0xD => false,                                 // Always false
-                    0xE => true,                                  // Always true
-                    0xF => false,                                 // Always false
+                    0x0 => !self.carry && self.accumulator != 0, // JNT (Jump if no carry and ACC != 0)
+                    0x1 => self.carry,                           // JC (Jump if carry)
+                    0x2 => self.accumulator == 0,                // JZ (Jump if zero)
+                    0x3 => self.accumulator != 0,                // JNZ (Jump if not zero)
+                    0x4 => true,                                 // JUN (Jump unconditional)
+                    0x5 => false,                                // Always false
+                    0x6 => true,                                 // Always true
+                    0x7 => false,                                // Always false
+                    0x8 => true,                                 // Always true
+                    0x9 => false,                                // Always false
+                    0xA => true,                                 // Always true
+                    0xB => false,                                // Always false
+                    0xC => true,                                 // Always true
+                    0xD => false,                                // Always false
+                    0xE => true,                                 // Always true
+                    0xF => false,                                // Always false
                     _ => false,
                 };
 
@@ -994,15 +993,20 @@ impl Intel4004 {
             Instruction::Wrm => {
                 // Write accumulator to RAM at current RAM address
                 // This would interface with RAM chips - for now, just log
-                println!("DEBUG: [CPU] WRM - Write ACC 0x{:X} to RAM address 0x{:02X}",
-                         self.accumulator, self.address_latch);
+                println!(
+                    "DEBUG: [CPU] WRM - Write ACC 0x{:X} to RAM address 0x{:02X}",
+                    self.accumulator, self.address_latch
+                );
                 self.program_counter.inc();
             }
 
             Instruction::Wmp => {
                 // Write memory pointer - set RAM address from accumulator
                 self.address_latch = self.accumulator;
-                println!("DEBUG: [CPU] WMP - Set RAM address to 0x{:02X}", self.address_latch);
+                println!(
+                    "DEBUG: [CPU] WMP - Set RAM address to 0x{:02X}",
+                    self.address_latch
+                );
                 self.program_counter.inc();
             }
 
@@ -1021,19 +1025,28 @@ impl Intel4004 {
             Instruction::Adm => {
                 // Add from memory - add RAM data to accumulator
                 // This would read from RAM and add to accumulator
-                println!("DEBUG: [CPU] ADM - Add from RAM address 0x{:02X}", self.address_latch);
+                println!(
+                    "DEBUG: [CPU] ADM - Add from RAM address 0x{:02X}",
+                    self.address_latch
+                );
                 self.program_counter.inc();
             }
 
             Instruction::Sbm => {
                 // Subtract from memory - subtract RAM data from accumulator
-                println!("DEBUG: [CPU] SBM - Subtract from RAM address 0x{:02X}", self.address_latch);
+                println!(
+                    "DEBUG: [CPU] SBM - Subtract from RAM address 0x{:02X}",
+                    self.address_latch
+                );
                 self.program_counter.inc();
             }
 
             Instruction::Rdm => {
                 // Read memory - read RAM data to accumulator
-                println!("DEBUG: [CPU] RDM - Read from RAM address 0x{:02X}", self.address_latch);
+                println!(
+                    "DEBUG: [CPU] RDM - Read from RAM address 0x{:02X}",
+                    self.address_latch
+                );
                 self.program_counter.inc();
             }
 
@@ -1181,8 +1194,10 @@ impl Intel4004 {
             self.execute_instruction();
             let new_pc = self.program_counter.value();
 
-            println!("DEBUG: [TEST] Single Execute | PC: 0x{:03X} -> 0x{:03X} | ACC: 0x{:X}",
-                    old_pc, new_pc, self.accumulator);
+            println!(
+                "DEBUG: [TEST] Single Execute | PC: 0x{:03X} -> 0x{:03X} | ACC: 0x{:X}",
+                old_pc, new_pc, self.accumulator
+            );
         }
     }
 
@@ -1200,7 +1215,11 @@ impl Intel4004 {
             }
         }
 
-        println!("DEBUG: [{}] Loaded test program: {:02X?}", self.base.name(), program);
+        println!(
+            "DEBUG: [{}] Loaded test program: {:02X?}",
+            self.base.name(),
+            program
+        );
     }
 }
 
@@ -1283,9 +1302,9 @@ mod tests {
         // Test XCH (exchange with register 1) - 0x11 = XCH 1
         cpu.current_op = Instruction::Xch(1);
         cpu.execute_instruction();
-        assert_eq!(cpu.get_accumulator(), 0x05);  // ACC gets R1's value
-        assert_eq!(cpu.get_register(0).unwrap(), 0x0A);  // R0 gets old ACC value
-        assert_eq!(cpu.get_register(1).unwrap(), 0x0A);  // R1 gets new ACC value
+        assert_eq!(cpu.get_accumulator(), 0x05); // ACC gets R1's value
+        assert_eq!(cpu.get_register(0).unwrap(), 0x0A); // R0 gets old ACC value
+        assert_eq!(cpu.get_register(1).unwrap(), 0x0A); // R1 gets new ACC value
 
         println!("DEBUG: Register operations test completed successfully");
     }
@@ -1517,10 +1536,6 @@ impl Component for Intel4004 {
                         self.instruction_phase = InstructionPhase::Fetch;
                     }
                 }
-            }
-
-            _ => {
-                // Other phases handled by memory operations
             }
         }
 

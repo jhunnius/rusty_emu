@@ -1062,18 +1062,25 @@ mod tests {
         }
 
         // Debug: Check pin states before update
-        println!("DEBUG: Before update - SYNC: {:?}, CM: {:?}, CI: {:?}, PHI1: {:?}",
-                 sync_pin.lock().unwrap().read(),
-                 cm_pin.lock().unwrap().read(),
-                 ci_pin.lock().unwrap().read(),
-                 phi1_pin.lock().unwrap().read());
+        println!(
+            "DEBUG: Before update - SYNC: {:?}, CM: {:?}, CI: {:?}, PHI1: {:?}",
+            sync_pin.lock().unwrap().read(),
+            cm_pin.lock().unwrap().read(),
+            ci_pin.lock().unwrap().read(),
+            phi1_pin.lock().unwrap().read()
+        );
 
         // Debug: Check conditions that would trigger memory operation
         let sync = rom.read_sync_pin();
         let chip_select = rom.read_cm_rom_pin();
         let io_select = rom.read_ci_pin();
-        println!("DEBUG: Conditions - sync: {}, chip_select: {}, io_select: {}, combined: {}",
-                 sync, chip_select, io_select, sync && chip_select && !io_select);
+        println!(
+            "DEBUG: Conditions - sync: {}, chip_select: {}, io_select: {}, combined: {}",
+            sync,
+            chip_select,
+            io_select,
+            sync && chip_select && !io_select
+        );
 
         // Debug: Check edge detection
         println!("DEBUG: Before update - prev_phi1: {:?}", rom.prev_phi1);
@@ -1084,8 +1091,10 @@ mod tests {
 
         // Debug: Check edge detection logic manually
         let phi1_rising = read_phi1 == PinValue::High && rom.prev_phi1 == PinValue::Low;
-        println!("DEBUG: Manual edge detection - PHI1: {:?}, prev_phi1: {:?}, rising: {}",
-                 read_phi1, rom.prev_phi1, phi1_rising);
+        println!(
+            "DEBUG: Manual edge detection - PHI1: {:?}, prev_phi1: {:?}, rising: {}",
+            read_phi1, rom.prev_phi1, phi1_rising
+        );
 
         // Update to process Φ1 rising edge
         rom.update();

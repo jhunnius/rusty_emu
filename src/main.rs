@@ -33,7 +33,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-
 fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
@@ -255,9 +254,9 @@ fn create_system(system_type: &str, program_data: &[u8]) -> Result<ConfigurableS
         _ => {
             // Try to use provided config file directly
             if system_type.ends_with(".json") {
-                let mut system = factory
-                    .create_from_json(system_type)
-                    .map_err(|e| format!("Failed to create system from '{}': {}", system_type, e))?;
+                let mut system = factory.create_from_json(system_type).map_err(|e| {
+                    format!("Failed to create system from '{}': {}", system_type, e)
+                })?;
 
                 // Load program data into ROM components
                 system.load_program_data(program_data)?;

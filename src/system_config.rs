@@ -17,10 +17,11 @@
 //!
 //! // Create system from JSON configuration
 //! let factory = SystemFactory::new();
-//! let mut system = factory.create_from_json("configs/mcs4_basic.json").expect("Could not create JSON test!");
+//! let system = factory.create_from_json("configs/mcs4_basic.json").expect("Could not create system!");
 //!
-//! // Run the configured system
-//! system.run();
+//! // Get system information
+//! let info = system.get_system_info();
+//! println!("Created system: {} with {} components", info.name, info.component_count);
 //! ```
 //!
 //! ## Configuration File Format
@@ -174,7 +175,9 @@ impl SystemFactory {
                         .and_then(|v| v.as_f64())
                         .unwrap_or(750000.0);
                     Ok(Box::new(
-                        crate::components::clock::two_phase_clock::TwoPhaseClock::new(name, frequency),
+                        crate::components::clock::two_phase_clock::TwoPhaseClock::new(
+                            name, frequency,
+                        ),
                     ))
                 } else {
                     Err("Two-phase clock must be single component".to_string())
@@ -439,9 +442,13 @@ impl ConfigurableSystem {
                 break;
             }
 
-            if i % 5 == 0 {  // Show header every 5 cycles
+            if i % 5 == 0 {
+                // Show header every 5 cycles
                 println!("\n┌─────────────────────────────────────────────────────────────┐");
-                println!("│                        CYCLE {:2}                             │", i);
+                println!(
+                    "│                        CYCLE {:2}                             │",
+                    i
+                );
                 println!("└─────────────────────────────────────────────────────────────┘");
             }
             self.display_current_state();
@@ -494,10 +501,12 @@ impl ConfigurableSystem {
         if let Some(cpu_component) = self.components.get("CPU_4004") {
             if let Ok(_cpu) = cpu_component.lock() {
                 println!("│ CPU State:                                                  │");
-                println!("│   Accumulator: 0x{:X}    Carry: {}    PC: 0x{:03X}               │",
-                    0, // Placeholder - would need CPU-specific method
+                println!(
+                    "│   Accumulator: 0x{:X}    Carry: {}    PC: 0x{:03X}               │",
+                    0,     // Placeholder - would need CPU-specific method
                     false, // Placeholder - would need CPU-specific method
-                    0); // Placeholder - would need CPU-specific method
+                    0
+                ); // Placeholder - would need CPU-specific method
             }
         }
 
@@ -509,11 +518,16 @@ impl ConfigurableSystem {
         }
 
         // Component status summary
-        let running_count = self.components.values()
+        let running_count = self
+            .components
+            .values()
             .filter(|comp| comp.lock().map_or(false, |c| c.is_running()))
             .count();
-        println!("│ Components: {}/{} running                                    │",
-                running_count, self.components.len());
+        println!(
+            "│ Components: {}/{} running                                    │",
+            running_count,
+            self.components.len()
+        );
 
         println!("└─────────────────────────────────────────────────────────────┘");
     }
@@ -559,7 +573,10 @@ impl ConfigurableSystem {
     /// Parameters: program_data - Binary program data to load
     /// Returns: Ok(()) on success, Err(String) on failure
     pub fn load_program_data(&mut self, program_data: &[u8]) -> Result<(), String> {
-        println!("DEBUG: Loading {} bytes of program data into ROM components", program_data.len());
+        println!(
+            "DEBUG: Loading {} bytes of program data into ROM components",
+            program_data.len()
+        );
 
         // Load program data into ROM_4001_1 (first 256 bytes)
         if let Some(rom1_component) = self.components.get_mut("ROM_4001_1") {

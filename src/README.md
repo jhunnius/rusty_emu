@@ -148,13 +148,17 @@ rom.update(); // Process one clock cycle
 use rusty_emu::systems::intel_mcs_4::IntelMCS4;
 
 // Create complete MCS-4 system
-let mut system = IntelMCS4::new();
+let system = IntelMCS4::new();
 
 // Load program into ROM
 system.load_program(0, & program_data) ?;
 
-// Run simulation
-system.run();
+// Get system information
+let info = system.get_system_info();
+println!("Loaded system: {} with {} components", info.name, info.component_count);
+
+// Run simulation (in a real application)
+// system.run();
 ```
 
 ## Development Guidelines

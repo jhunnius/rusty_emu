@@ -53,8 +53,8 @@ impl Intel400xAddressHandling for MockComponent {
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
     use super::*;
+    use std::thread;
 
     #[test]
     fn test_timing_constants() {

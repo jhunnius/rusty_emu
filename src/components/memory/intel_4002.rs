@@ -583,8 +583,13 @@ impl Intel4002 {
 
         if self.address_high_nibble.is_none() {
             self.address_high_nibble = Some(nibble);
-            println!("DEBUG: [{}] Addr Latch High | Nibble: 0x{:X} | State: {:?} | Cycles: {}",
-                    self.base.name(), nibble, self.ram_state, self.get_cycle_count());
+            println!(
+                "DEBUG: [{}] Addr Latch High | Nibble: 0x{:X} | State: {:?} | Cycles: {}",
+                self.base.name(),
+                nibble,
+                self.ram_state,
+                self.get_cycle_count()
+            );
         } else if self.address_low_nibble.is_none() {
             self.address_low_nibble = Some(nibble);
             println!("DEBUG: [{}] Addr Latch Low | High: 0x{:X} | Low: 0x{:X} | State: {:?} | Cycles: {}",
@@ -766,7 +771,8 @@ impl Component for Intel4002 {
         static mut CYCLE_COUNTER: u64 = 0;
         unsafe {
             CYCLE_COUNTER += 1;
-            if CYCLE_COUNTER % 5000 == 0 { // Less frequent than CPU to avoid spam
+            if CYCLE_COUNTER % 5000 == 0 {
+                // Less frequent than CPU to avoid spam
                 println!("DEBUG: [{}] RAM State | Bank: {} | Status: {:?} | Ready: {} | LastAddr: 0x{:02X} | Cycles: {} | HighNib: {:?} | LowNib: {:?}",
                         self.base.name(), self.bank_select, self.ram_state, self.full_address_ready, self.last_address, self.get_cycle_count(), self.address_high_nibble, self.address_low_nibble);
             }
@@ -1161,17 +1167,27 @@ mod tests {
         }
 
         // Debug: Check pin states before first update
-        println!("DEBUG: Before first update - SYNC: {:?}, P0: {:?}, PHI1: {:?}",
-                 sync_pin.lock().unwrap().read(),
-                 p0_pin.lock().unwrap().read(),
-                 phi1_pin.lock().unwrap().read());
+        println!(
+            "DEBUG: Before first update - SYNC: {:?}, P0: {:?}, PHI1: {:?}",
+            sync_pin.lock().unwrap().read(),
+            p0_pin.lock().unwrap().read(),
+            phi1_pin.lock().unwrap().read()
+        );
 
         // Debug: Check conditions that would trigger RAM operation
         let (sync, _cm, p0, _) = ram.read_control_pins();
-        println!("DEBUG: Control pins - sync: {}, p0: {}, combined: {}", sync, p0, sync && p0);
+        println!(
+            "DEBUG: Control pins - sync: {}, p0: {}, combined: {}",
+            sync,
+            p0,
+            sync && p0
+        );
 
         // Debug: Check initial clock state
-        println!("DEBUG: Before first update - prev_phi1: {:?}", ram.prev_phi1);
+        println!(
+            "DEBUG: Before first update - prev_phi1: {:?}",
+            ram.prev_phi1
+        );
 
         // High nibble
         phi1_pin
@@ -1207,8 +1223,10 @@ mod tests {
         }
 
         // Debug: Check state before low nibble
-        println!("DEBUG: Before low nibble - High: {:?}, Low: {:?}, Ready: {}",
-                 ram.address_high_nibble, ram.address_low_nibble, ram.full_address_ready);
+        println!(
+            "DEBUG: Before low nibble - High: {:?}, Low: {:?}, Ready: {}",
+            ram.address_high_nibble, ram.address_low_nibble, ram.full_address_ready
+        );
 
         // Low nibble
         phi1_pin
@@ -1218,8 +1236,10 @@ mod tests {
         ram.update(); // rising edge -> latch low nibble
 
         // Debug: Check state after low nibble
-        println!("DEBUG: After low nibble - High: {:?}, Low: {:?}, Ready: {}",
-                 ram.address_high_nibble, ram.address_low_nibble, ram.full_address_ready);
+        println!(
+            "DEBUG: After low nibble - High: {:?}, Low: {:?}, Ready: {}",
+            ram.address_high_nibble, ram.address_low_nibble, ram.full_address_ready
+        );
 
         phi1_pin
             .lock()

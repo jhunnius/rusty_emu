@@ -414,7 +414,9 @@ impl ConsoleApp {
             Line::from(vec![Span::raw("Status: Running (check console output)")]),
             Line::from(vec![Span::raw("PC: 0x000 (see DEBUG output)")]),
             Line::from(vec![Span::raw("ACC: 0x0 (see DEBUG output)")]),
-            Line::from(vec![Span::raw("Instructions: Executing (see DEBUG output)")]),
+            Line::from(vec![Span::raw(
+                "Instructions: Executing (see DEBUG output)",
+            )]),
         ];
 
         let register_widget = Paragraph::new(register_info)

@@ -126,10 +126,14 @@ use rusty_emu::system_config::SystemFactory;
 
 // Create system from JSON configuration
 let factory = SystemFactory::new();
-let mut system = factory.create_from_json("configs/mcs4_basic.json") ?;
+let system = factory.create_from_json("configs/mcs4_basic.json") ?;
 
-// Run simulation
-system.run();
+// Get system information
+let info = system.get_system_info();
+println!("Created system: {} with {} components", info.name, info.component_count);
+
+// Run simulation (in a real application)
+// system.run();
 ```
 
 ### Command Line Usage
