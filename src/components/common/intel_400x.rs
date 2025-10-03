@@ -218,11 +218,22 @@ pub trait Intel400xControlPins {
     fn read_sync_pin(&self) -> bool {
         if let Ok(pin) = self.get_base().get_pin("SYNC") {
             if let Ok(pin_guard) = pin.lock() {
-                pin_guard.read() == PinValue::High
+                let value = pin_guard.read() == PinValue::High;
+                if value {
+                    println!(
+                        "DEBUG: [COMMON] SYNC pin is HIGH for {}",
+                        self.get_base().name()
+                    );
+                }
+                value
             } else {
                 false
             }
         } else {
+            println!(
+                "DEBUG: [COMMON] SYNC pin not found for {}",
+                self.get_base().name()
+            );
             false
         }
     }

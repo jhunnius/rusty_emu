@@ -143,14 +143,13 @@ impl Intel4004 {
     /// Returns: New Intel4004 instance with initialized state
     pub fn new(name: String, clock_speed: f64) -> Self {
         let pin_names = vec![
-            "D0", "D1", "D2", "D3",     // Data bus pins
-            "SYNC",   // Sync signal
-            "CM_ROM", // ROM chip select
-            "CM_RAM", // RAM chip select
-            "TEST",   // Test pin
-            "RESET",  // Reset
-            "PHI1",   // Clock phase 1
-            "PHI2",   // Clock phase 2
+            "D0", "D1", "D2", "D3",    // Data bus pins
+            "SYNC",  // Sync signal
+            "CM",    // Chip select for memory
+            "TEST",  // Test pin
+            "RESET", // Reset
+            "PHI1",  // Clock phase 1
+            "PHI2",  // Clock phase 2
         ];
 
         let pins = BaseComponent::create_pin_map(&pin_names, &name);
@@ -224,8 +223,7 @@ impl Intel4004 {
         self.full_address_ready = false;
 
         self.set_sync(false);
-        self.set_cm_rom(false);
-        self.set_cm_ram(false);
+        self.set_cm(false);
         self.tri_state_data_bus();
     }
 
@@ -291,21 +289,10 @@ impl Intel4004 {
         }
     }
 
-    /// Set the CM-ROM (Chip Select ROM) pin state
+    /// Set the CM (Chip Select) pin state
     /// Parameters: high - true for high voltage, false for low voltage
-    fn set_cm_rom(&self, high: bool) {
-        if let Ok(pin) = self.base.get_pin("CM_ROM") {
-            if let Ok(mut pin_guard) = pin.lock() {
-                let value = if high { PinValue::High } else { PinValue::Low };
-                pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), value);
-            }
-        }
-    }
-
-    /// Set the CM-RAM (Chip Select RAM) pin state
-    /// Parameters: high - true for high voltage, false for low voltage
-    fn set_cm_ram(&self, high: bool) {
-        if let Ok(pin) = self.base.get_pin("CM_RAM") {
+    fn set_cm(&self, high: bool) {
+        if let Ok(pin) = self.base.get_pin("CM") {
             if let Ok(mut pin_guard) = pin.lock() {
                 let value = if high { PinValue::High } else { PinValue::Low };
                 pin_guard.set_driver(Some(self.base.get_name().parse().unwrap()), value);
@@ -314,8 +301,8 @@ impl Intel4004 {
     }
 
     /// Read the state of all control pins
-    /// Returns: (sync, cm_rom, cm_ram, test) - State of control signals
-    fn read_control_pins(&self) -> (bool, bool, bool, bool) {
+    /// Returns: (sync, cm, test) - State of control signals
+    fn read_control_pins(&self) -> (bool, bool, bool) {
         let sync = if let Ok(pin) = self.base.get_pin("SYNC") {
             if let Ok(pin_guard) = pin.lock() {
                 pin_guard.read() == PinValue::High
@@ -326,17 +313,7 @@ impl Intel4004 {
             false
         };
 
-        let cm_rom = if let Ok(pin) = self.base.get_pin("CM_ROM") {
-            if let Ok(pin_guard) = pin.lock() {
-                pin_guard.read() == PinValue::High
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        let cm_ram = if let Ok(pin) = self.base.get_pin("CM_RAM") {
+        let cm = if let Ok(pin) = self.base.get_pin("CM") {
             if let Ok(pin_guard) = pin.lock() {
                 pin_guard.read() == PinValue::High
             } else {
@@ -356,7 +333,7 @@ impl Intel4004 {
             false
         };
 
-        (sync, cm_rom, cm_ram, test)
+        (sync, cm, test)
     }
 
     /// Read the two-phase clock pins from CPU
@@ -394,9 +371,13 @@ impl Intel4004 {
         self.handle_reset();
 
         // Check for memory operation start on Φ1 rising edge with SYNC high
-        let (sync, cm_rom, cm_ram, _) = self.read_control_pins();
-        if sync && (cm_rom || cm_ram) {
+        let (sync, cm, _) = self.read_control_pins();
+        if sync && cm {
             // Start memory address phase on Φ1 rising edge
+            println!(
+                "DEBUG: [CPU] Starting memory operation - SYNC: {}, CM: {}",
+                sync, cm
+            );
             self.start_memory_address_phase();
         }
 
@@ -584,18 +565,18 @@ impl Intel4004 {
 
     /// Handle data driving during DriveData state
     fn handle_data_driving(&mut self) {
-        let (sync, cm_rom, cm_ram, _) = self.read_control_pins();
+        let (sync, cm, _) = self.read_control_pins();
 
-        // Memory read: SYNC=1, (CM_ROM=1 or CM_RAM=1), valid address
-        if sync && (cm_rom || cm_ram) && self.full_address_ready {
+        // Memory read: SYNC=1, CM=1, valid address
+        if sync && cm && self.full_address_ready {
             // All conditions met: drive data on bus
             let data = self.data_latch;
             self.write_data_bus(data);
 
             if self.cycle_count % 1000 == 0 {
                 // Log every 1000 cycles
-                println!("DEBUG: [{}] CPU State | PC: 0x{:03X} | Cycles: {} | ACC: 0x{:X} | SYNC: {} | CM_ROM: {} | CM_RAM: {} | RAM_Ready: {}",
-                        self.base.name(), self.program_counter.value(), self.cycle_count, self.accumulator, sync, cm_rom, cm_ram, self.full_address_ready);
+                println!("DEBUG: [{}] CPU State | PC: 0x{:03X} | Cycles: {} | ACC: 0x{:X} | SYNC: {} | CM: {} | Ready: {}",
+                         self.base.name(), self.program_counter.value(), self.cycle_count, self.accumulator, sync, cm, self.full_address_ready);
             }
         } else {
             // Conditions not met, tri-state
@@ -1090,7 +1071,7 @@ impl Intel4004 {
             // Jump on Test Instructions
             Instruction::Jnt(addr) => {
                 // Jump if test pin is high
-                let (_, _, _, test) = self.read_control_pins();
+                let (_, _, test) = self.read_control_pins();
                 if test {
                     self.program_counter.set(addr);
                 } else {
@@ -1100,7 +1081,7 @@ impl Intel4004 {
 
             Instruction::JntInvert(addr) => {
                 // Jump if test pin is low (inverted)
-                let (_, _, _, test) = self.read_control_pins();
+                let (_, _, test) = self.read_control_pins();
                 if !test {
                     self.program_counter.set(addr);
                 } else {
@@ -1432,32 +1413,85 @@ impl Component for Intel4004 {
         self.prev_phi2 = phi2;
 
         if phi1_rising {
+            // Reduced debug output - only show occasional cycles
+            static mut CYCLE_COUNT: u32 = 0;
+            unsafe {
+                CYCLE_COUNT += 1;
+                if CYCLE_COUNT % 1000 == 0 {
+                    let (sync, cm, _) = self.read_control_pins();
+                    println!("DEBUG: [CPU] Φ1 Rising Edge - PC: 0x{:03X}, ACC: 0x{:X}, Phase: {:?}, SYNC: {}, CM: {} (cycle {})",
+                             self.program_counter.value(), self.accumulator, self.instruction_phase, sync, cm, CYCLE_COUNT);
+                }
+            }
             self.handle_phi1_rising();
         }
 
         if phi1_falling {
             // Φ1 Falling Edge: End of address phase
+            // Reduced debug output - only show occasional cycles
+            static mut CYCLE_COUNT: u32 = 0;
+            unsafe {
+                CYCLE_COUNT += 1;
+                if CYCLE_COUNT % 1000 == 0 {
+                    println!("DEBUG: [CPU] Φ1 Falling Edge (cycle {})", CYCLE_COUNT);
+                }
+            }
             self.handle_phi1_falling();
         }
 
         if phi2_rising {
             // Φ2 Rising Edge: Data phase (peripherals drive bus) - handle data operations
+            // Reduced debug output - only show occasional cycles
+            static mut CYCLE_COUNT: u32 = 0;
+            unsafe {
+                CYCLE_COUNT += 1;
+                if CYCLE_COUNT % 1000 == 0 {
+                    println!(
+                        "DEBUG: [CPU] Φ2 Rising Edge - Memory State: {:?} (cycle {})",
+                        self.memory_state, CYCLE_COUNT
+                    );
+                }
+            }
             self.handle_phi2_rising();
         }
 
         if phi2_falling {
             // Φ2 Falling Edge: End of data phase - tri-state bus and return to idle
+            // Reduced debug output - only show occasional cycles
+            static mut CYCLE_COUNT: u32 = 0;
+            unsafe {
+                CYCLE_COUNT += 1;
+                if CYCLE_COUNT % 1000 == 0 {
+                    println!("DEBUG: [CPU] Φ2 Falling Edge (cycle {})", CYCLE_COUNT);
+                }
+            }
             self.handle_phi2_falling();
         }
 
         // Handle instruction execution during appropriate phases
+        // Set SYNC signal during fetch phase to initiate memory read
+        if self.instruction_phase == InstructionPhase::Fetch {
+            self.set_sync(true);
+            self.set_cm(true);
+            println!("DEBUG: [CPU] Setting signals - SYNC: HIGH, CM: HIGH");
+        } else {
+            self.set_sync(false);
+            println!("DEBUG: [CPU] Setting SYNC: LOW");
+        }
+
+        println!(
+            "DEBUG: [CPU] Instruction phase: {:?}, PC: 0x{:03X}, State: {:?}",
+            self.instruction_phase,
+            self.program_counter.value(),
+            self.memory_state
+        );
         match self.instruction_phase {
             InstructionPhase::Fetch => {
                 // Check if we're waiting for an operand (two-instruction format)
                 if let Instruction::JunHigh(_) | Instruction::JmsHigh(_) = self.current_op {
                     // Waiting for operand - fetch it
-                    let (sync, cm_rom, cm_ram, _) = self.read_control_pins();
-                    if sync && cm_rom && !cm_ram {
+                    let (sync, cm, _) = self.read_control_pins();
+                    if sync && cm {
                         if self.memory_state == MemoryState::DriveData {
                             let operand = self.read_data_bus();
                             self.program_counter.inc(); // Advance PC after fetching operand
@@ -1484,9 +1518,14 @@ impl Component for Intel4004 {
                     }
                 } else {
                     // Normal instruction fetch
-                    let (sync, cm_rom, cm_ram, _) = self.read_control_pins();
-                    if sync && cm_rom && !cm_ram {
-                        // ROM access - fetch instruction
+                    let (sync, cm, _) = self.read_control_pins();
+                    println!(
+                        "DEBUG: [CPU] Normal fetch - SYNC: {}, CM: {}, State: {:?}",
+                        sync, cm, self.memory_state
+                    );
+                    if sync && cm {
+                        // Memory access - fetch instruction
+                        println!("DEBUG: [CPU] Fetching instruction from memory - PC: 0x{:03X}, State: {:?}", self.program_counter.value(), self.memory_state);
                         if self.memory_state == MemoryState::DriveData {
                             let instruction = self.read_data_bus();
                             self.current_instruction = instruction;
@@ -1529,9 +1568,15 @@ impl Component for Intel4004 {
                         self.execute_instruction();
                         let new_pc = self.program_counter.value();
 
-                        // Debug: Show instruction execution details
-                        println!("DEBUG: [CPU] Executed {:?} | PC: 0x{:03X} -> 0x{:03X} | ACC: 0x{:X} | RAM_Ready: {}",
-                                 self.current_op, old_pc, new_pc, self.accumulator, self.full_address_ready);
+                        // Debug: Show instruction execution details (reduced frequency)
+                        static mut EXEC_COUNT: u32 = 0;
+                        unsafe {
+                            EXEC_COUNT += 1;
+                            if EXEC_COUNT % 10 == 0 {
+                                println!("DEBUG: [CPU] Executed {:?} | PC: 0x{:03X} -> 0x{:03X} | ACC: 0x{:X} | RAM_Ready: {}",
+                                         self.current_op, old_pc, new_pc, self.accumulator, self.full_address_ready);
+                            }
+                        }
 
                         self.instruction_phase = InstructionPhase::Fetch;
                     }
@@ -1551,7 +1596,7 @@ impl Component for Intel4004 {
 
         while self.is_running() {
             self.update();
-            thread::sleep(Duration::from_micros(10));
+            thread::sleep(Duration::from_micros(1));
         }
     }
 
@@ -1561,8 +1606,7 @@ impl Component for Intel4004 {
         self.base.set_running(false);
         self.tri_state_data_bus();
         self.set_sync(false);
-        self.set_cm_rom(false);
-        self.set_cm_ram(false);
+        self.set_cm(false);
     }
 
     fn is_running(&self) -> bool {

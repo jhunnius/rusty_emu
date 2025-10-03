@@ -314,7 +314,10 @@ impl SystemFactory {
         components: &mut HashMap<String, Arc<Mutex<Box<dyn Component>>>>,
     ) -> Result<(), String> {
         for (connection_id, connection_config) in &config.connections {
-            println!("Connecting: {}", connection_id);
+            println!(
+                "DEBUG: Connecting: {} - {} -> {:?}",
+                connection_id, connection_config.source.component, connection_config.targets
+            );
 
             // Get source pin
             let source_component = components
@@ -387,11 +390,12 @@ impl ConfigurableSystem {
             let name_clone = name.clone();
 
             let handle = std::thread::spawn(move || {
-                println!("Starting component: {}", name_clone);
+                println!("DEBUG: Starting component thread: {}", name_clone);
                 if let Ok(mut comp) = comp_clone.lock() {
+                    println!("DEBUG: Running component: {}", name_clone);
                     comp.run();
                 }
-                println!("Component {} stopped", name_clone);
+                println!("DEBUG: Component {} stopped", name_clone);
             });
 
             handles.push((name.clone(), handle));
@@ -540,6 +544,12 @@ impl ConfigurableSystem {
         self.is_running
     }
 
+    /// Get access to components for monitoring purposes
+    /// Returns: Reference to the components HashMap for read-only access
+    pub fn get_components(&self) -> &HashMap<String, Arc<Mutex<Box<dyn Component>>>> {
+        &self.components
+    }
+
     pub fn get_system_info(&self) -> SystemInfo {
         let rom_size = self
             .config
@@ -583,9 +593,9 @@ impl ConfigurableSystem {
             if let Ok(_rom1) = rom1_component.lock() {
                 let rom1_data = &program_data[..program_data.len().min(256)];
                 println!("DEBUG: Loading {} bytes into ROM_4001_1", rom1_data.len());
-
-                // TODO: Load data using Intel4001's load_rom_data method when available
-                // For now, we'll note that the data should be loaded here
+                println!("DEBUG: Program data: {:02X?}", rom1_data);
+                // TODO: Load data using Intel4001's load_rom_data method when downcast is working
+                println!("DEBUG: Program data should be loaded into ROM_4001_1");
             }
         } else {
             println!("DEBUG: Warning - ROM_4001_1 component not found");

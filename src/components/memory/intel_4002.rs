@@ -789,22 +789,29 @@ impl Component for Intel4002 {
         self.prev_phi2 = phi2;
 
         if phi1_rising {
+            println!(
+                "DEBUG: [RAM] Φ1 Rising Edge - State: {:?}, Ready: {}",
+                self.ram_state, self.full_address_ready
+            );
             // Φ1 Rising Edge: Address phase (CPU drives bus) - handle address latching
             self.handle_phi1_rising();
         }
 
         if phi1_falling {
             // Φ1 Falling Edge: End of address phase
+            println!("DEBUG: [RAM] Φ1 Falling Edge");
             self.handle_phi1_falling();
         }
 
         if phi2_rising {
             // Φ2 Rising Edge: Data phase (RAM drives bus if ready) - handle data operations
+            println!("DEBUG: [RAM] Φ2 Rising Edge - State: {:?}", self.ram_state);
             self.handle_phi2_rising();
         }
 
         if phi2_falling {
             // Φ2 Falling Edge: End of data phase - tri-state bus and return to idle
+            println!("DEBUG: [RAM] Φ2 Falling Edge");
             self.handle_phi2_falling();
         }
 

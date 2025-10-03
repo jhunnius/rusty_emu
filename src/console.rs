@@ -149,9 +149,11 @@ impl ConsoleApp {
                 }
             }
             KeyCode::Char('h') | KeyCode::Char('H') => {
+                println!("DEBUG: Help key pressed");
                 self.show_help = !self.show_help;
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
+                println!("DEBUG: Run key pressed");
                 if let Ok(mut system) = self.system.lock() {
                     if system.is_running() {
                         system.stop();
@@ -161,35 +163,48 @@ impl ConsoleApp {
                 }
             }
             KeyCode::Char('s') | KeyCode::Char('S') => {
+                println!("DEBUG: Stop key pressed");
                 if let Ok(mut system) = self.system.lock() {
                     system.stop();
                 }
             }
             KeyCode::Char(' ') => {
+                println!("DEBUG: Space key pressed - single step not implemented");
                 // Single step (if supported)
                 // This would require adding step functionality to the system
             }
             KeyCode::Tab => {
+                println!("DEBUG: Tab key pressed - switching panes");
                 self.selected_pane = (self.selected_pane + 1) % 3;
             }
             KeyCode::Backspace => {
+                println!("DEBUG: Backspace key pressed");
                 self.command_buffer.pop();
             }
             KeyCode::Enter => {
+                println!(
+                    "DEBUG: Enter key pressed - executing command: '{}'",
+                    self.command_buffer
+                );
                 self.execute_command();
                 self.command_buffer.clear();
             }
             KeyCode::Char(c) => {
+                println!("DEBUG: Character key pressed: '{}'", c);
                 if c.is_ascii_alphabetic() || c.is_ascii_digit() {
                     self.command_buffer.push(c);
                 }
             }
-            _ => {}
+            _ => {
+                println!("DEBUG: Unhandled key pressed: {:?}", key);
+            }
         }
     }
 
     fn execute_command(&mut self) {
         let cmd = self.command_buffer.trim().to_lowercase();
+        println!("DEBUG: Executing command: '{}'", cmd);
+
         match cmd.as_str() {
             "quit" | "exit" | "q" => {
                 println!("DEBUG: Executing quit command");
@@ -199,27 +214,52 @@ impl ConsoleApp {
                 }
             }
             "run" | "r" => {
+                println!("DEBUG: Executing run command");
                 if let Ok(mut system) = self.system.lock() {
                     system.run();
                 }
             }
             "stop" | "s" => {
+                println!("DEBUG: Executing stop command");
                 if let Ok(mut system) = self.system.lock() {
                     system.stop();
                 }
             }
             "help" | "h" => {
+                println!("DEBUG: Toggling help display");
                 self.show_help = !self.show_help;
             }
             "reset" => {
+                println!("DEBUG: Executing reset command");
                 if let Ok(mut system) = self.system.lock() {
                     system.stop();
                     // Reset would need to be implemented in the system
                 }
             }
+            "status" => {
+                println!("DEBUG: Executing status command");
+                if let Ok(system) = self.system.lock() {
+                    let info = system.get_system_info();
+                    println!("System: {} - {}", info.name, info.description);
+                    println!(
+                        "Components: {}, Running: {}",
+                        info.component_count,
+                        system.is_running()
+                    );
+                }
+            }
+            "ram" => {
+                println!("DEBUG: Executing RAM display command");
+                if let Ok(_system) = self.system.lock() {
+                    println!("RAM display requested - would show RAM contents here");
+                }
+            }
+            "" => {
+                // Empty command - do nothing
+            }
             _ => {
-                // Unknown command - could show error message
-                println!("DEBUG: Unknown command: {}", cmd);
+                println!("DEBUG: Unknown command: '{}'", cmd);
+                println!("Available commands: quit, run, stop, help, reset, status, ram");
             }
         }
     }

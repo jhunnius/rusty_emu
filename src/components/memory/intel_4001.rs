@@ -291,9 +291,23 @@ impl Intel4001 {
         let chip_select = self.read_cm_rom_pin();
         let io_select = self.read_ci_pin();
 
+        println!(
+            "DEBUG: [ROM] Checking memory access - SYNC: {}, CM: {}, CI: {}",
+            sync, chip_select, io_select
+        );
+
         if sync && chip_select && !io_select {
             // Start memory address phase on Φ1 rising edge (ROM access)
+            println!(
+                "DEBUG: [ROM] Starting memory address phase - SYNC: {}, CM: {}, CI: {}",
+                sync, chip_select, io_select
+            );
             self.start_memory_address_phase();
+        } else {
+            println!(
+                "DEBUG: [ROM] Memory access conditions not met - SYNC: {}, CM: {}, CI: {}",
+                sync, chip_select, io_select
+            );
         }
 
         // Handle I/O operations (higher priority than memory operations)
@@ -512,59 +526,32 @@ impl Intel4001 {
     /// Hardware-accurate: Φ2 is when peripherals drive data, so we handle data driving
     /// Focus: Data driving operations
     fn handle_memory_data_operations(&mut self) {
-        println!(
-            "DEBUG: {} - handle_memory_data_operations: state={:?}, address_ready={}",
-            self.base.name(),
-            self.memory_state,
-            self.full_address_ready
-        );
+        // Reduced debug output - only show when actually driving data
         match self.memory_state {
             MemoryState::Idle => {
                 // During data phase, idle state means tri-state the bus
-                println!("DEBUG: {} - In Idle state, tri-stating", self.base.name());
                 self.tri_state_data_bus();
             }
 
             MemoryState::AddressPhase => {
                 // Address phase should be handled by Φ1, not Φ2
                 // Tri-state bus during wrong phase
-                println!(
-                    "DEBUG: {} - In AddressPhase during Φ2, tri-stating",
-                    self.base.name()
-                );
                 self.tri_state_data_bus();
             }
 
             MemoryState::WaitLatency => {
                 // Address latched, waiting for access latency
                 // Check if latency has elapsed and we can transition to data phase
-                println!(
-                    "DEBUG: {} - In WaitLatency, checking latency",
-                    self.base.name()
-                );
                 self.handle_latency_wait();
                 // If we transitioned to DriveData, handle data driving
                 if self.memory_state == MemoryState::DriveData {
-                    println!(
-                        "DEBUG: {} - Transitioned to DriveData, calling handle_data_driving",
-                        self.base.name()
-                    );
                     self.handle_data_driving();
-                } else {
-                    println!(
-                        "DEBUG: {} - Still in WaitLatency after handle_latency_wait",
-                        self.base.name()
-                    );
                 }
             }
 
             MemoryState::DriveData => {
                 // Latency elapsed, drive data on bus during Φ2
                 // Data will remain on bus until Φ2 falling edge
-                println!(
-                    "DEBUG: {} - In DriveData state, calling handle_data_driving",
-                    self.base.name()
-                );
                 self.handle_data_driving();
             }
         }
@@ -630,27 +617,11 @@ impl Intel4001 {
     fn handle_latency_wait(&mut self) {
         if let Some(latch_time) = self.address_latch_time {
             let elapsed = latch_time.elapsed();
-            println!(
-                "DEBUG: {} - handle_latency_wait: elapsed={:?}, access_time={:?}, ready={}",
-                self.base.get_name(),
-                elapsed,
-                self.access_time,
-                self.full_address_ready
-            );
             if elapsed >= self.access_time {
                 // Latency elapsed, transition to data driving
                 // Data will be driven on next Φ2 rising edge
-                println!(
-                    "DEBUG: {} - Latency elapsed, transitioning to DriveData",
-                    self.base.get_name()
-                );
                 self.start_data_driving();
             }
-        } else {
-            println!(
-                "DEBUG: {} - handle_latency_wait: no latch_time set",
-                self.base.get_name()
-            );
         }
     }
 
@@ -668,15 +639,6 @@ impl Intel4001 {
         let chip_select = self.read_cm_rom_pin();
         let io_select = self.read_ci_pin();
 
-        println!(
-            "DEBUG: {} - handle_data_driving: SYNC={}, CM={}, CI={}, Address_Ready={}",
-            self.base.name(),
-            sync,
-            chip_select,
-            io_select,
-            self.full_address_ready
-        );
-
         // Memory read: CM=1 (chip_select), CI=0 (!io_select), valid address
         if sync && chip_select && !io_select && self.full_address_ready {
             // All conditions met: drive data on bus
@@ -684,33 +646,14 @@ impl Intel4001 {
             let address = self.last_address;
             if (address as usize) < self.memory.len() {
                 let data = self.memory[address as usize];
-                println!(
-                    "DEBUG: {} - All conditions met, driving data 0x{:x} to address 0x{:x}",
-                    self.base.name(),
-                    data,
-                    address
-                );
                 self.write_data_bus(data);
                 // Note: Don't call return_to_idle() here - wait for Φ2 falling edge
             } else {
                 // Invalid address, tri-state
-                println!(
-                    "DEBUG: {} - Invalid address 0x{:x}, tri-stating",
-                    self.base.name(),
-                    address
-                );
                 self.tri_state_data_bus();
             }
         } else {
-            // Bus contention guard: ROM should not drive when conditions not met
-            // In real hardware, this would cause a short if CPU is still driving
-            if self.full_address_ready {
-                println!("DEBUG: {} - Bus contention detected! ROM attempting to drive data bus when conditions not met (SYNC={}, CM={}, CI={}, Address_Ready={})",
-                         self.base.name(), sync, chip_select, io_select, self.full_address_ready);
-            }
             // Conditions not met, tri-state
-            println!("DEBUG: {} - Conditions not met, tri-stating (SYNC={}, CM={}, CI={}, Address_Ready={})",
-                     self.base.name(), sync, chip_select, io_select, self.full_address_ready);
             self.tri_state_data_bus();
         }
     }

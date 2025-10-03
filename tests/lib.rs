@@ -9,6 +9,8 @@
 pub use rusty_emu;
 
 // Module declarations for test files
+mod gui_integration_tests;
+mod gui_tests;
 mod integration_tests;
 mod intel_400x_tests;
 

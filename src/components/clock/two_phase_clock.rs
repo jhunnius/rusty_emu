@@ -140,6 +140,17 @@ impl Component for TwoPhaseClock {
         self.update_outputs();
 
         if self.should_transition() {
+            // Reduced debug output - only show occasional transitions
+            static mut TRANSITION_COUNT: u32 = 0;
+            unsafe {
+                TRANSITION_COUNT += 1;
+                if TRANSITION_COUNT % 1000 == 0 {
+                    println!(
+                        "DEBUG: [CLOCK] Transitioning - PHI1: {:?} -> PHI2: {:?} (cycle {})",
+                        self.phi1_state, self.phi2_state, TRANSITION_COUNT
+                    );
+                }
+            }
             self.perform_transition();
         }
     }

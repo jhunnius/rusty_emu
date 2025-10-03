@@ -81,7 +81,7 @@
         {"component": "RAM_4002", "pin": "PHI2"}
       ]
     },
-    "data_bus": {
+    "data_bus_d0": {
       "connection_type": "data_bus",
       "source": {
         "component": "CPU_4004",
@@ -91,6 +91,42 @@
         {"component": "ROM_4001_1", "pin": "D0"},
         {"component": "ROM_4001_2", "pin": "D0"},
         {"component": "RAM_4002", "pin": "D0"}
+      ]
+    },
+    "data_bus_d1": {
+      "connection_type": "data_bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D1"
+      },
+      "targets": [
+        {"component": "ROM_4001_1", "pin": "D1"},
+        {"component": "ROM_4001_2", "pin": "D1"},
+        {"component": "RAM_4002", "pin": "D1"}
+      ]
+    },
+    "data_bus_d2": {
+      "connection_type": "data_bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D2"
+      },
+      "targets": [
+        {"component": "ROM_4001_1", "pin": "D2"},
+        {"component": "ROM_4001_2", "pin": "D2"},
+        {"component": "RAM_4002", "pin": "D2"}
+      ]
+    },
+    "data_bus_d3": {
+      "connection_type": "data_bus",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "D3"
+      },
+      "targets": [
+        {"component": "ROM_4001_1", "pin": "D3"},
+        {"component": "ROM_4001_2", "pin": "D3"},
+        {"component": "RAM_4002", "pin": "D3"}
       ]
     },
     "control_signals": {
@@ -103,6 +139,18 @@
         {"component": "ROM_4001_1", "pin": "SYNC"},
         {"component": "ROM_4001_2", "pin": "SYNC"},
         {"component": "RAM_4002", "pin": "SYNC"}
+      ]
+    },
+    "cm_signals": {
+      "connection_type": "control",
+      "source": {
+        "component": "CPU_4004",
+        "pin": "CM"
+      },
+      "targets": [
+        {"component": "ROM_4001_1", "pin": "CM"},
+        {"component": "ROM_4001_2", "pin": "CM"},
+        {"component": "RAM_4002", "pin": "P0"}
       ]
     }
   },
